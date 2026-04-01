@@ -1,0 +1,38 @@
+{
+	"countryConditions": {
+		"MX": "mexicoTaxIdRequired"
+	},
+	"overrideConditions": {
+        "VN": "S"
+    },
+    "validationRules": {
+        "name": { "maxLength": 255 },
+        "company": { "maxLength": 100 },
+        "address1": { "maxLength": 45 },
+        "address2": { "maxLength": 45 },
+        "address3": { "maxLength": 45 },
+        "postalcode": { "maxLength": 12 },
+        "city": { "maxLength": 45 },
+        "suburb": { "maxLength": 45 },
+        "email": { "maxLength": 70 },
+        "phone": { "maxLength": 70 },
+        "vat": { "maxLength": 35 },
+        "shipmentRef": { "maxLength": 35 },
+        "itemDescription": { "maxLength": 200 },
+        "summarizeShipment": { "maxLength": 70, "minLength": 1 },
+        "invoiceNumber": { "maxLength": 35, "minLength": 1 },
+        "pickupInstructions": { "maxLength": 75 },
+        "accountNumber": { "length": 9 },
+        "package": {
+            "quantity": { "min": 1, "max": 99 },
+            "dimensions": { "min": 0.01, "max": 999 },
+            "weight": { "min": 0.01, "max": 999 }
+        },
+        "lineItem": {
+            "quantity": { "min": 1 },
+            "weight": { "min": 0.001 },
+            "value": { "min": 0.001 }
+        }
+    }
+}
+

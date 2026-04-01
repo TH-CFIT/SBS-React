@@ -1,0 +1,238 @@
+[
+	{
+		"unitOfMeasurement": "BOX",
+		"description": "Boxes"
+	},
+	{
+		"unitOfMeasurement": "2M2",
+		"description": "Cubic Meters"
+	},
+	{
+		"unitOfMeasurement": "DPR",
+		"description": "Dozen Pairs"
+	},
+	{
+		"unitOfMeasurement": "DOZ",
+		"description": "Dozen"
+	},
+	{
+		"unitOfMeasurement": "PCS",
+		"description": "Pieces"
+	},
+	{
+		"unitOfMeasurement": "GM",
+		"description": "Grams"
+	},
+	{
+		"unitOfMeasurement": "GRS",
+		"description": "Gross"
+	},
+	{
+		"unitOfMeasurement": "KG",
+		"description": "Kilograms"
+	},
+	{
+		"unitOfMeasurement": "3GM",
+		"description": "Milligrams"
+	},
+	{
+		"unitOfMeasurement": "X",
+		"description": "No Unit Required"
+	},
+	{
+		"unitOfMeasurement": "NO",
+		"description": "Number"
+	},
+	{
+		"unitOfMeasurement": "PRS",
+		"description": "Pairs"
+	},
+	{
+		"unitOfMeasurement": "CM2",
+		"description": "Square Centimeters"
+	},
+	{
+		"unitOfMeasurement": "2M2",
+		"description": "Square Feet"
+	},
+	{
+		"unitOfMeasurement": "3M2",
+		"description": "Square Inches"
+	},
+	{
+		"unitOfMeasurement": "M2",
+		"description": "Square Meters"
+	},
+	{
+		"unitOfMeasurement": "4M2",
+		"description": "Square Yards"
+	},
+	{
+		"unitOfMeasurement": "CM",
+		"description": "Centimeters"
+	},
+	{
+		"unitOfMeasurement": "CONE",
+		"description": "Cone"
+	},
+	{
+		"unitOfMeasurement": "CT",
+		"description": "Carat"
+	},
+	{
+		"unitOfMeasurement": "EA",
+		"description": "Each"
+	},
+	{
+		"unitOfMeasurement": "LBS",
+		"description": "Pounds"
+	},
+	{
+		"unitOfMeasurement": "RILL",
+		"description": "Rill"
+	},
+	{
+		"unitOfMeasurement": "ROLL",
+		"description": "Roll"
+	},
+	{
+		"unitOfMeasurement": "SET",
+		"description": "Set"
+	},
+	{
+		"unitOfMeasurement": "TU",
+		"description": "Time Unit"
+	},
+	{
+		"unitOfMeasurement": "2GM",
+		"description": "centigram"
+	},
+	{
+		"unitOfMeasurement": "KM",
+		"description": "kilometre"
+	},
+	{
+		"unitOfMeasurement": "IN",
+		"description": "inch"
+	},
+	{
+		"name": "foot",
+		"code": "FT"
+	},
+	{
+		"unitOfMeasurement": "YD",
+		"description": "yard"
+	},
+	{
+		"name": "mile (statute mile)",
+		"code": "MI"
+	},
+	{
+		"unitOfMeasurement": "LTR",
+		"description": "litre"
+	},
+	{
+		"unitOfMeasurement": "MMQ",
+		"description": "cubic millimetre"
+	},
+	{
+		"unitOfMeasurement": "CM3",
+		"description": "cubic centimetre"
+	},
+	{
+		"unitOfMeasurement": "DMQ",
+		"description": "cubic decimetre"
+	},
+	{
+		"unitOfMeasurement": "MLT",
+		"description": "millilitre"
+	},
+	{
+		"unitOfMeasurement": "CLT",
+		"description": "centilitre"
+	},
+	{
+		"unitOfMeasurement": "DLT",
+		"description": "decilitre"
+	},
+	{
+		"unitOfMeasurement": "INQ",
+		"description": "cubic inch"
+	},
+	{
+		"unitOfMeasurement": "FT3",
+		"description": "cubic foot"
+	},
+	{
+		"unitOfMeasurement": "YD3",
+		"description": "cubic yard"
+	},
+	{
+		"unitOfMeasurement": "GLL",
+		"description": "gallon (UK)"
+	},
+	{
+		"unitOfMeasurement": "GLI",
+		"description": "gallon (US)"
+	},
+	{
+		"unitOfMeasurement": "PT",
+		"description": "pint (US)"
+	},
+	{
+		"unitOfMeasurement": "PTI",
+		"description": "pint (UK)"
+	},
+	{
+		"unitOfMeasurement": "QTI",
+		"description": "quart (UK)"
+	},
+	{
+		"unitOfMeasurement": "QTL",
+		"description": "liquid quart (US)"
+	},
+	{
+		"unitOfMeasurement": "PTL",
+		"description": "liquid pint (US)"
+	},
+	{
+		"unitOfMeasurement": "PTD",
+		"description": "dry pint (US)"
+	},
+	{
+		"unitOfMeasurement": "OZI",
+		"description": "fluid ounce (UK)"
+	},
+	{
+		"unitOfMeasurement": "J57",
+		"description": "barrel (UK petroleum)"
+	},
+	{
+		"unitOfMeasurement": "NM3",
+		"description": "Normalised cubic metre"
+	},
+	{
+		"unitOfMeasurement": "SM3",
+		"description": "Standard cubic metre"
+	},
+	{
+		"unitOfMeasurement": "TNE",
+		"description": "tonne (metric ton)"
+	},
+	{
+		"unitOfMeasurement": "LB",
+		"description": "Pound"
+	},
+	{
+		"unitOfMeasurement": "ONZ",
+		"description": "ounce (avoirdupois)"
+	},
+	{
+		"unitOfMeasurement": "CEL",
+		"description": "degree Celsius"
+	},
+	{
+		"unitOfMeasurement": "M",
+		"description": "Meters"
+	}
+]

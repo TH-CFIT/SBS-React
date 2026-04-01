@@ -1,0 +1,66 @@
+[
+	{
+		"incoterm": "DAP",
+		"incotermName": "Delivered at Place"
+	},
+	{
+		"incoterm": "DDU",
+		"incotermName": "Delivered Duty Unpaid"
+	},
+	{
+		"incoterm": "DDP",
+		"incotermName": "Delivered Duty Paid"
+	},
+	{
+		"incoterm": "DEQ",
+		"incotermName": "Delivery ex Quay"
+	},
+	{
+		"incoterm": "FCA",
+		"incotermName": "Free Carrier"
+	},
+	{
+		"incoterm": "FAS",
+		"incotermName": "Free Alongside Ship"
+	},
+	{
+		"incoterm": "DAF",
+		"incotermName": "Delivered at Frontier"
+	},
+	{
+		"incoterm": "FOB",
+		"incotermName": "Free on Board"
+	},
+	{
+		"incoterm": "EXW",
+		"incotermName": "Ex Works"
+	},
+	{
+		"incoterm": "CPT",
+		"incotermName": "Carriage Paid To"
+	},
+	{
+		"incoterm": "DES",
+		"incotermName": "Delivered ex Ship"
+	},
+	{
+		"incoterm": "CFR",
+		"incotermName": "Cost and Freight"
+	},
+	{
+		"incoterm": "CIF",
+		"incotermName": "Cost Insurance and Freight"
+	},
+	{
+		"incoterm": "CIP",
+		"incotermName": "Carriage and Insurance Paid to"
+	},
+	{
+		"incoterm": "DAT",
+		"incotermName": "Delivered at Terminal"
+	},
+	{
+		"incoterm": "DPU",
+		"incotermName": "Delivered at Place Unloaded"
+	}
+]
