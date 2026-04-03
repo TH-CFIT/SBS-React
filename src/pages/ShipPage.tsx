@@ -4,7 +4,7 @@ import {
   User, MapPin, Package, CreditCard,
   FileText, Truck, ClipboardList,
   ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Plus, Trash2,
-  AlertCircle, CheckCircle2, Check, Info, Upload, Clock, List, Globe
+  AlertCircle, CheckCircle2, Check, Info, Upload, Clock, List, Globe, XCircle
 } from 'lucide-react';
 
 import countriesData from '../../data/countries.json';
@@ -13,6 +13,7 @@ import appConfig from '../../data/appConfig.json';
 import currenciesData from '../../data/currencies.json';
 import documentTypes from '../../data/documentTypes.json';
 import uomData from '../../data/uom.json';
+import pickupLocations from '../../data/pickupLocations.json';
 import { buildShipmentPayload } from '../utils/createShipment';
 
 
@@ -32,23 +33,157 @@ const transformCountryData = (apiResponse: any) => {
   }).sort((a: any, b: any) => a.countryName.localeCompare(b.countryName));
 };
 
+const getFlagEmoji = (countryCode: string) => {
+  if (!countryCode || countryCode.length !== 2) return '';
+  return `https://flagcdn.com/w40/${countryCode.toLowerCase()}.png`;
+};
+
+const CountryFlag = ({ code, className = "w-5 h-3.5 object-cover rounded-sm" }: { code: string, className?: string }) => {
+  if (!code) return null;
+  return <img src={getFlagEmoji(code)} alt={code} className={className} />;
+};
+
+const Combobox = ({ 
+  label, 
+  value, 
+  options, 
+  onChange, 
+  placeholder, 
+  showError, 
+  required,
+  displayValue = (v: any) => v
+}: { 
+  label: string, 
+  value: string, 
+  options: any[], 
+  onChange: (v: string) => void, 
+  placeholder?: string, 
+  showError?: boolean, 
+  required?: boolean,
+  displayValue?: (v: any) => string
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [inputText, setInputText] = useState("");
+  const [isFocused, setIsFocused] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        setIsFocused(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Sync inputText when value changes externally
+  useEffect(() => {
+    const selectedOption = options.find(opt => (opt.countryCode || opt.code || opt) === value);
+    if (selectedOption) {
+      setInputText(displayValue(selectedOption));
+    } else if (!value) {
+      setInputText("");
+    }
+  }, [value, options]);
+
+  const filteredOptions = options.filter(opt => {
+    const text = displayValue(opt).toLowerCase();
+    return text.includes(inputText.toLowerCase());
+  });
+
+  const selectedOption = options.find(opt => (opt.countryCode || opt.code || opt) === value);
+  // Check if current inputText matches any option (for typed-in validation)
+  const matchedByText = options.find(opt => displayValue(opt).toLowerCase() === inputText.toLowerCase());
+  const isValid = !inputText || matchedByText || selectedOption;
+  const isMissing = required && !value && !inputText;
+  const isInvalidTyped = inputText && !matchedByText && !selectedOption;
+  const hasError = showError && (isMissing || isInvalidTyped);
+
+  const handleInputChange = (text: string) => {
+    setInputText(text);
+    setIsOpen(true);
+    // If text matches an option exactly, select it
+    const exactMatch = options.find(opt => displayValue(opt).toLowerCase() === text.toLowerCase());
+    if (exactMatch) {
+      onChange(exactMatch.countryCode || exactMatch.code || exactMatch);
+    } else {
+      // Clear selection if text doesn't match
+      if (value) onChange('');
+    }
+  };
+
+  const handleSelect = (opt: any) => {
+    const optVal = opt.countryCode || opt.code || opt;
+    onChange(optVal);
+    setInputText(displayValue(opt));
+    setIsOpen(false);
+    inputRef.current?.blur();
+  };
+
+  return (
+    <div className="space-y-1.5 flex-grow relative" ref={containerRef}>
+      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{label}</label>
+      <div className="relative">
+        <div className={`w-full rounded-xl border-2 bg-white dark:bg-gray-800 flex items-center gap-3 transition-all ${isFocused ? 'border-dhl-yellow ring-2 ring-dhl-yellow/10' : 'hover:border-gray-200'} ${hasError ? 'border-dhl-red ring-4 ring-red-500/10' : 'border-gray-50 dark:border-gray-700'}`}>
+          {selectedOption?.countryCode && <span className="pl-4 flex-shrink-0"><CountryFlag code={selectedOption.countryCode} /></span>}
+          <input
+            ref={inputRef}
+            type="text"
+            className={`w-full p-4 bg-transparent outline-none font-bold ${!selectedOption?.countryCode ? 'pl-4' : 'pl-0'}`}
+            placeholder={placeholder || "Type to search..."}
+            value={inputText}
+            onChange={e => handleInputChange(e.target.value)}
+            onFocus={() => { setIsFocused(true); setIsOpen(true); }}
+            onBlur={() => setIsFocused(false)}
+          />
+          {required && !value && !inputText && (
+            <span className="pr-4 text-dhl-red font-black text-xl animate-pulse">*</span>
+          )}
+          {selectedOption && (
+            <span className="pr-4"><Check className="text-green-500 w-5 h-5" strokeWidth={3} /></span>
+          )}
+        </div>
+        
+        {isOpen && filteredOptions.length > 0 && (
+          <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-2xl shadow-2xl z-[100] animate-in fade-in zoom-in duration-200">
+            <div className="max-h-60 overflow-y-auto custom-scrollbar p-2">
+              {filteredOptions.map((opt, i) => {
+                const optVal = opt.countryCode || opt.code || opt;
+                const isSelected = value === optVal;
+                return (
+                  <div
+                    key={i}
+                    onMouseDown={(e) => { e.preventDefault(); handleSelect(opt); }}
+                    className={`p-3 rounded-xl flex items-center gap-3 cursor-pointer transition-all ${isSelected ? 'bg-dhl-red text-white' : 'hover:bg-gray-50 dark:hover:bg-gray-900'}`}
+                  >
+                    {opt.countryCode && <CountryFlag code={opt.countryCode} />}
+                    <span className="font-bold text-sm">{displayValue(opt)}</span>
+                    {isSelected && <Check className="w-4 h-4 ml-auto" />}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+      {showError && isMissing && <p className="text-[10px] font-bold text-dhl-red ml-1">This field is required</p>}
+      {showError && isInvalidTyped && <p className="text-[10px] font-bold text-dhl-red ml-1">Invalid detail - please select from the list</p>}
+    </div>
+  );
+};
+
 // --- Sub Components ---
-// --- Sub Components ---
-const AddressCard = ({ title, data, onChange, countries, bgClass = '', readOnlyCountry = false, showError = false, requiredEmail = true, showCountryPlaceholder = true }: { title: string, data: any, onChange: (d: any) => void, countries: any[], bgClass?: string, readOnlyCountry?: boolean, showError?: boolean, requiredEmail?: boolean, showCountryPlaceholder?: boolean }) => {
+const AddressCard = ({ title, data, onChange, countries, bgClass = '', readOnlyCountry = false, showError = false, requiredEmail = true }: { title: string, data: any, onChange: (d: any) => void, countries: any[], bgClass?: string, readOnlyCountry?: boolean, showError?: boolean, requiredEmail?: boolean }) => {
   const { t } = useLanguage();
 
-  // Logic to manage receiver address fields (City vs Postal Code vs Suburb)
-  // In legacy, many receiver fields were hidden until a country was selected. 
-  // We'll show/hide fields based on the selected country's postalLocationTypeCode.
-  const selectedCountry = countries.find(c => c.countryCode === data.country);
-  const mode = selectedCountry?.postalLocationTypeCode || 'CP'; // Default to City/Postal
+  const selectedCountry = countries.find((c: any) => c.countryCode === data.country);
+  const mode = selectedCountry?.postalLocationTypeCode || 'CP';
 
-  // CP: City/Postal, C: City only, S: City/Suburb
-  // Suburb is only for receiver but we let 'mode' control it if present in data
   const showPostal = mode === 'CP';
   const showSuburb = mode === 'S' && 'suburb' in data;
-
-  const countryError = showError && !data.country;
 
   return (
     <div className={`card space-y-6 ${bgClass} transition-shadow hover:shadow-2xl`}>
@@ -62,36 +197,26 @@ const AddressCard = ({ title, data, onChange, countries, bgClass = '', readOnlyC
         <Input label={t('company' as any)} value={data.company} onChange={(v: any) => onChange({ ...data, company: v })} required ruleKey="company" showError={showError} />
       </div>
 
-      <div className="space-y-1.5 focus-within:z-10">
-        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t('country' as any)}</label>
-        <div className="relative">
-          <select
-            className={`w-full p-4 pr-12 rounded-xl border-2 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-dhl-yellow outline-none font-bold disabled:opacity-50 transition-all ${readOnlyCountry ? 'bg-gray-50 border-none pointer-events-none' : 'hover:border-gray-200'} ${countryError ? 'border-dhl-red ring-4 ring-red-500/10' : 'border-gray-50 dark:border-gray-700'}`}
-            value={data.country || ""}
-            onChange={e => onChange({ ...data, country: e.target.value })}
-            disabled={readOnlyCountry}
-          >
-            <option value="" disabled={!showCountryPlaceholder}>
-              {t('typeOrSelectCountry' as any)}
-            </option>
-            
-            {countries.map((c: any, index: number) => (
-              <option key={`${c.countryCode}-${index}`} value={c.countryCode}>
-                {c.countryName || c.name}
-              </option>
-            ))}
-          </select>
-          {!data.country && (
-            <span className="absolute right-10 top-1/2 -translate-y-1/2 text-dhl-red font-black text-xl animate-pulse pointer-events-none">*</span>
-          )}
-          {!!data.country && (
-            <Check className="absolute right-10 top-1/2 -translate-y-1/2 text-green-500 w-5 h-5 animate-in zoom-in pointer-events-none" strokeWidth={3} />
-          )}
+      {readOnlyCountry ? (
+        <div className="space-y-1.5">
+          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t('country' as any)}</label>
+          <div className="w-full p-4 rounded-xl border-2 bg-gray-50 dark:bg-gray-900 border-none flex items-center gap-3 opacity-70 cursor-not-allowed">
+            {data.country && <CountryFlag code={data.country} />}
+            <span className="font-bold text-gray-900 dark:text-white">{selectedCountry?.countryName || selectedCountry?.name || data.country}</span>
+          </div>
         </div>
-        {countryError && (
-          <p className="text-[10px] font-bold text-dhl-red ml-1">Country is required</p>
-        )}
-      </div>
+      ) : (
+        <Combobox 
+          label={t('country' as any)} 
+          value={data.country} 
+          options={countries} 
+          onChange={val => onChange({ ...data, country: val })}
+          showError={showError}
+          required
+          displayValue={(c) => c.countryName || c.name}
+          placeholder={t('typeOrSelectCountry' as any)}
+        />
+      )}
 
       {data.country && (
         <div className="space-y-6 pt-4 border-t border-gray-50 animate-in fade-in slide-in-from-top-4 duration-500">
@@ -133,7 +258,7 @@ const AddressCard = ({ title, data, onChange, countries, bgClass = '', readOnlyC
 const Input = ({ label, value, onChange, type = 'text', required, disabled, readOnly, ruleKey, showError, min, max, placeholder, inputMode, pattern }: { label: string, value: any, onChange?: (v: any) => void, type?: string, required?: boolean, disabled?: boolean, readOnly?: boolean, ruleKey?: string, showError?: boolean, min?: string, max?: string, placeholder?: string, inputMode?: "none" | "text" | "tel" | "url" | "email" | "numeric" | "decimal" | "search", pattern?: string }) => {
   const { t } = useLanguage();
   const rule = ruleKey ? (appConfig.validationRules as any)[ruleKey] : null;
-  const maxLength = rule?.maxLength;
+  const maxLength = rule?.maxLength || rule?.length;
   const currentLength = value?.toString().length || 0;
 
   const isAtLimit = maxLength && currentLength >= maxLength;
@@ -153,11 +278,20 @@ const Input = ({ label, value, onChange, type = 'text', required, disabled, read
   const isHardError = showError && (isMissingValue || isEmailInvalid || isPhoneTooShort || isAccLengthInvalid);
 
   const handleTextChange = (v: string) => {
-    if (type === 'date' || type === 'number') {
+    let sanitized = v;
+
+    if (type === 'date') {
       onChange?.(v);
       return;
     }
-    let sanitized = v;
+
+    if (type === 'number') {
+      // Allow user to type decimals freely, but the value is passed through as-is
+      // The step=1 on the input element controls arrow key behavior (integers)
+      // Users can still manually type decimals like 0.5
+      onChange?.(v);
+      return;
+    }
 
     if (isPhone) {
       sanitized = sanitized.replace(/[^0-9]/g, '');
@@ -167,12 +301,16 @@ const Input = ({ label, value, onChange, type = 'text', required, disabled, read
       sanitized = sanitized.replace(/[^\x20-\x7E]/g, '');
     }
 
+    if (maxLength && sanitized.length > maxLength) {
+      sanitized = sanitized.substring(0, maxLength);
+    }
+
     onChange?.(sanitized);
   };
 
   return (
     <div className="space-y-1.5 flex-grow">
-      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{label}</label>
+      {label && <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{label}</label>}
       <div className="relative">
         <input
           type={type}
@@ -183,10 +321,11 @@ const Input = ({ label, value, onChange, type = 'text', required, disabled, read
           maxLength={maxLength}
           min={min}
           max={max}
+          step={type === 'number' ? '1' : undefined}
           placeholder={placeholder}
           inputMode={inputMode}
           pattern={pattern}
-          className={`w-full p-4 pr-12 rounded-xl border-2 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-dhl-yellow outline-none font-bold transition-all ${disabled ? 'opacity-50 cursor-not-allowed bg-gray-50' : 'hover:border-gray-200'} ${readOnly ? 'bg-gray-50 dark:bg-gray-900 border-none' : ''} ${isHardError ? 'border-dhl-red ring-4 ring-red-500/10' : 'border-gray-50 dark:border-gray-700'}`}
+          className={`w-full p-4 pr-12 rounded-xl border-2 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-dhl-yellow outline-none font-bold transition-all ${disabled ? 'opacity-50 cursor-not-allowed bg-gray-200 dark:bg-gray-700' : 'hover:border-gray-200'} ${readOnly ? 'bg-gray-50 dark:bg-gray-900 border-none' : ''} ${isHardError ? 'border-dhl-red ring-4 ring-red-500/10' : 'border-gray-50 dark:border-gray-700'}`}
         />
         {required && !value && (
           <span className="absolute right-4 top-1/2 -translate-y-1/2 text-dhl-red font-black text-xl animate-pulse pointer-events-none">*</span>
@@ -195,10 +334,6 @@ const Input = ({ label, value, onChange, type = 'text', required, disabled, read
           <Check className="absolute right-4 top-1/2 -translate-y-1/2 text-green-500 w-5 h-5 animate-in zoom-in pointer-events-none" strokeWidth={3} />
         )}
       </div>
-      {/* Red Limit Message shows ONLY during typing, hidden after validation if field is OK */}
-      {isAtLimit && !showError && (
-        <p className="text-[10px] font-bold text-dhl-red ml-1 animate-in fade-in slide-in-from-top-1">Maximum {maxLength} characters</p>
-      )}
       {showError && isMissingValue && (
         <p className="text-[10px] font-bold text-dhl-red ml-1 animate-in fade-in slide-in-from-top-1">This field is required</p>
       )}
@@ -267,7 +402,9 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showValidationErrors, setShowValidationErrors] = useState(false);
+  const [validationMessage, setValidationMessage] = useState('');
   const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>({ 0: true });
+  const [validationErrors, setValidationErrors] = useState<Record<string, boolean>>({});
 
   // Validation rules from appConfig
   const packageQuantityMin = appConfig.validationRules.package.quantity.min;
@@ -304,9 +441,10 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
       shipperAccount: '',
       billingAccount: '',
       dutiesAccount: '',
-      incoterm: 'DAP',
+      incoterm: 'DDP',
       paymentRole: 'shipper',
-      dutiesRole: 'shipper'
+      dutiesRole: 'receiver',
+      useShipperForBilling: true
     },
 
     // Step 5: Customs Docs (Invoice items & docs)
@@ -317,15 +455,19 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
       currency: 'THB',
       items: [{ description: '', quantity: 1, weight: 0.5, value: 1, origin: 'TH', units: 'PCS', commodityCode: '' }],
       uploadedDocs: [] as File[],
+      uploadDocuments: false,
+      optionalUpload: false,
     },
 
     // Step 6: Pickup
     pickup: {
       required: true,
-      location: 'Reception',
+      location: pickupLocations[0] || 'Reception',
       instructions: '',
       readyTime: '09:00',
-      closeTime: '17:00'
+      closeTime: '17:00',
+      address: { name: '', company: '', address1: '', address2: '', address3: '', city: '', postalCode: '', phone: '', country: 'TH' },
+      isAddressManuallyEdited: false
     }
   });
 
@@ -361,6 +503,28 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
     fetchCountries();
   }, []);
 
+  useEffect(() => {
+    if (!formData.pickup.isAddressManuallyEdited) {
+       setFormData(prev => ({
+         ...prev,
+         pickup: {
+           ...prev.pickup,
+           address: {
+             name: prev.shipper.name,
+             company: prev.shipper.company,
+             address1: prev.shipper.address1,
+             address2: prev.shipper.address2,
+             address3: prev.shipper.address3,
+             city: prev.shipper.city,
+             postalCode: prev.shipper.postalCode,
+             phone: prev.shipper.phone,
+             country: prev.shipper.country
+           }
+         }
+       }));
+    }
+  }, [formData.shipper]);
+
   const steps = [
     { id: 1, name: 'addressStep', icon: MapPin },
     { id: 2, name: 'shipmentDetailsStep', icon: List },
@@ -371,46 +535,149 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
     { id: 7, name: 'summaryStep', icon: CheckCircle2 },
   ];
 
-  const handleNext = () => {
-    if (currentStep === 1) {
-    const { shipper, receiver } = formData;
-    const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-    
-    const isShipperValid = shipper.name && shipper.company && shipper.address1 && shipper.city && shipper.phone && shipper.email && isValidEmail(shipper.email);
-    const isReceiverValid = receiver.name && receiver.company && receiver.country && receiver.address1 && receiver.city && receiver.phone && (!receiver.email || isValidEmail(receiver.email));
+  const [isEditingPickupAddress, setIsEditingPickupAddress] = useState(false);
+  const [tempPickupAddress, setTempPickupAddress] = useState(formData.pickup.address);
 
-    if (!isShipperValid || !isReceiverValid) {
-      setShowValidationErrors(true);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return; 
+  const formatTime = (mins: number) => {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const displayH = h % 12 || 12;
+    return `${displayH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')} ${ampm}`;
+  };
+
+  const toMinutes = (time: string) => {
+    if (!time) return 570; // 09:30
+    const [h, m] = time.split(':').map(Number);
+    return h * 60 + m;
+  };
+
+  const handleNext = () => {
+    if (currentStep === 5) {
+      const { invoice } = formData;
+      const errors: string[] = [];
+
+      if (invoice.uploadDocuments) {
+        if (invoice.creationMode === 'own' && invoice.uploadedDocs.length === 0) {
+          errors.push('Please upload your commercial invoice.');
+        }
+        if (invoice.creationMode === 'create' && invoice.optionalUpload && invoice.uploadedDocs.length === 0) {
+          errors.push('Please upload your supporting documents or uncheck the upload option.');
+        }
+      }
+
+      if (errors.length > 0) {
+        setShowValidationErrors(true);
+        setValidationMessage(errors.join(' • '));
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
     }
-  }
+
+    if (currentStep === 1) {
+      const { shipper, receiver } = formData;
+      const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+      const errors: string[] = [];
+      if (!shipper.name) errors.push('Shipper Name is required');
+      if (!shipper.company) errors.push('Shipper Company is required');
+      if (!shipper.address1) errors.push('Shipper Address is required');
+      if (!shipper.city) errors.push('Shipper City is required');
+      if (!shipper.phone) errors.push('Shipper Phone is required');
+      if (!shipper.email) errors.push('Shipper Email is required');
+      else if (!isValidEmail(shipper.email)) errors.push('Shipper Email is invalid');
+
+      // Check receiver country is valid (must match a country in the list)
+      const receiverCountryValid = countries.find((c: any) => c.countryCode === receiver.country);
+      if (!receiver.name) errors.push('Receiver Name is required');
+      if (!receiver.company) errors.push('Receiver Company is required');
+      if (!receiver.country) errors.push('Receiver Country is required');
+      else if (!receiverCountryValid) errors.push('Receiver Country is invalid - please select from the list');
+      if (!receiver.address1) errors.push('Receiver Address is required');
+      if (!receiver.city) errors.push('Receiver City is required');
+      if (!receiver.phone) errors.push('Receiver Phone is required');
+      if (receiver.email && !isValidEmail(receiver.email)) errors.push('Receiver Email is invalid');
+
+      if (errors.length > 0) {
+        setShowValidationErrors(true);
+        setValidationMessage(errors.join(' • '));
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+    }
 
     if (currentStep === 2) {
       const { shipMethod, shipDate, documentDescription, invoice, summarizeShipment } = formData;
+      const errors: string[] = [];
 
-      if (!shipDate) {
-        setShowValidationErrors(true);
-        return;
-      }
+      if (!shipDate) errors.push('Shipment Date is required');
 
       if (shipMethod === 'document') {
-        if (!documentDescription.trim()) {
-          setShowValidationErrors(true);
-          return;
-        }
+        // Validate document description is in list
+        const validDoc = documentTypes.includes(documentDescription);
+        if (!documentDescription.trim()) errors.push('Document description is required');
+        else if (!validDoc) errors.push('Document description is invalid - please select from the list');
       } else {
         const hasItems = invoice.items.length > 0;
         const allItemsHaveDesc = invoice.items.every(item => item.description && item.description.trim() !== '');
-        
         const needsSummary = invoice.items.length > 1;
         const hasSummary = summarizeShipment && summarizeShipment.trim() !== '';
 
-        if (!hasItems || !allItemsHaveDesc || (needsSummary && !hasSummary)) {
-          setShowValidationErrors(true);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-          return;
+        if (!hasItems) errors.push('At least one line item is required');
+        if (!allItemsHaveDesc) errors.push('All line items must have a description');
+        if (needsSummary && !hasSummary) errors.push('Summarize shipment is required when there are multiple items');
+
+        invoice.items.forEach((item, i) => {
+          if (item.quantity < appConfig.validationRules.lineItem.quantity.min) errors.push(`Item #${i + 1} Qty must be at least ${appConfig.validationRules.lineItem.quantity.min}`);
+          if (item.weight < appConfig.validationRules.lineItem.weight.min) errors.push(`Item #${i + 1} Weight must be at least ${appConfig.validationRules.lineItem.weight.min}`);
+          if (item.value < appConfig.validationRules.lineItem.value.min) errors.push(`Item #${i + 1} Value must be at least ${appConfig.validationRules.lineItem.value.min}`);
+        });
+      }
+
+      if (errors.length > 0) {
+        setShowValidationErrors(true);
+        setValidationMessage(errors.join(' • '));
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+    }
+
+    if (currentStep === 3) {
+      const errors: string[] = [];
+      const newFieldErrorMap: Record<string, boolean> = {};
+      const rules = appConfig.validationRules.package;
+      
+      const totalPkgQty = formData.packages.reduce((sum, p) => sum + (p.quantity || 0), 0);
+      if (totalPkgQty < rules.quantity.min || totalPkgQty > rules.quantity.max) {
+        errors.push(`Total Packages must be between ${rules.quantity.min} and ${rules.quantity.max} (Current total: ${totalPkgQty})`);
+        formData.packages.forEach((_, i) => { newFieldErrorMap[`pkg-qty-${i}`] = true; });
+      }
+
+      formData.packages.forEach((pkg, idx) => {
+        if (pkg.weight < rules.weight.min || pkg.weight > rules.weight.max) {
+          errors.push(`Package #${idx + 1} Weight must be between ${rules.weight.min} and ${rules.weight.max}`);
+          newFieldErrorMap[`pkg-weight-${idx}`] = true;
         }
+        if (pkg.width < rules.dimensions.min || pkg.width > rules.dimensions.max) {
+          errors.push(`Package #${idx + 1} Width must be between ${rules.dimensions.min} and ${rules.dimensions.max}`);
+          newFieldErrorMap[`pkg-width-${idx}`] = true;
+        }
+        if (pkg.height < rules.dimensions.min || pkg.height > rules.dimensions.max) {
+          errors.push(`Package #${idx + 1} Height must be between ${rules.dimensions.min} and ${rules.dimensions.max}`);
+          newFieldErrorMap[`pkg-height-${idx}`] = true;
+        }
+        if (pkg.depth < rules.dimensions.min || pkg.depth > rules.dimensions.max) {
+          errors.push(`Package #${idx + 1} Depth must be between ${rules.dimensions.min} and ${rules.dimensions.max}`);
+          newFieldErrorMap[`pkg-depth-${idx}`] = true;
+        }
+      });
+
+      if (errors.length > 0) {
+        setShowValidationErrors(true);
+        setValidationMessage(errors.join(' • '));
+        setValidationErrors(newFieldErrorMap);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
       }
     }
 
@@ -418,22 +685,30 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
       const requiredLength = appConfig.validationRules.accountNumber.length;
       const { payment } = formData;
       const isValidAcc = (acc: string) => acc && acc.length === requiredLength;
+      const errors: string[] = [];
 
-      const isShipperAccValid = isValidAcc(payment.shipperAccount);
-      const isBillingAccValid = isValidAcc(payment.billingAccount);
-      const isDutiesAccValid = payment.dutiesRole === 'receiver' || isValidAcc(payment.dutiesAccount);
+      if (!isValidAcc(payment.shipperAccount)) errors.push(`Shipper Account must be ${requiredLength} digits`);
+      if (!isValidAcc(payment.billingAccount)) errors.push(`Billing Account must be ${requiredLength} digits`);
+      if (payment.dutiesRole !== 'receiver' && !isValidAcc(payment.dutiesAccount)) errors.push(`Duties & Taxes Account must be ${requiredLength} digits`);
+      if (!payment.incoterm) errors.push('Incoterm is required');
 
-      if (!isShipperAccValid || !isBillingAccValid || !isDutiesAccValid || !payment.incoterm) {
+      if (errors.length > 0) {
         setShowValidationErrors(true);
-        // แจ้งเตือนสั้นๆ เพื่อให้รู้ว่าทำไมถึงกด Next ไม่ไป
-        console.warn("Validation failed in Step 4"); 
-        return; 
+        setValidationMessage(errors.join(' • '));
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
       }
     }
 
     if (currentStep < 7) {
       setShowValidationErrors(false);
-      setCurrentStep(currentStep + 1);
+      setValidationMessage('');
+      setValidationErrors({});
+      if (formData.shipMethod === 'document' && currentStep === 4) {
+        setCurrentStep(6);
+      } else {
+        setCurrentStep(currentStep + 1);
+      }
       window.scrollTo(0, 0);
     } else {
       handleFinalSubmit();
@@ -442,7 +717,11 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
 
   const handlePrev = () => {
     if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
+      if (formData.shipMethod === 'document' && currentStep === 6) {
+        setCurrentStep(4);
+      } else {
+        setCurrentStep(currentStep - 1);
+      }
       window.scrollTo(0, 0);
     } else {
       onBack();
@@ -562,7 +841,14 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
 
           return (
             <React.Fragment key={step.id}>
-              <div className={`flex flex-col items-center gap-2 min-w-fit px-4 transition-all ${isDisabled ? 'opacity-30 cursor-not-allowed' : ''}`}>
+              <div 
+                className={`flex flex-col items-center gap-2 min-w-fit px-4 transition-all ${isDisabled ? 'opacity-30 cursor-not-allowed' : (isCompleted ? 'cursor-pointer hover:opacity-80' : 'cursor-not-allowed')}`}
+                onClick={() => {
+                  if (isCompleted && !isDisabled) {
+                    setCurrentStep(step.id);
+                  }
+                }}
+              >
                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 ${isActive ? 'bg-dhl-red text-white scale-110 shadow-lg shadow-red-500/30' : isCompleted ? 'bg-green-500 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-400'}`}>
                   {isCompleted ? <CheckCircle2 className="w-6 h-6" /> : <Icon className="w-6 h-6" />}
                 </div>
@@ -577,6 +863,19 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
           );
         })}
       </div>
+
+      {/* Validation Error Banner */}
+      {showValidationErrors && validationMessage && (
+        <div className="bg-red-50 dark:bg-red-950/30 border-2 border-dhl-red rounded-2xl p-6 flex items-start gap-4 animate-in slide-in-from-top-4 duration-300 shadow-lg shadow-red-500/10">
+          <div className="p-2 bg-dhl-red rounded-xl text-white flex-shrink-0">
+            <AlertCircle className="w-6 h-6" />
+          </div>
+          <div className="flex-grow">
+            <h4 className="font-black text-dhl-red uppercase tracking-tight text-sm mb-1">{t('fillAllFields')}</h4>
+            <p className="text-sm font-bold text-gray-700 dark:text-gray-300">{validationMessage}</p>
+          </div>
+        </div>
+      )}
 
       {/* Steps Content */}
       <div className="min-h-[400px]">
@@ -599,7 +898,6 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
               bgClass="bg-yellow-50/30"
               showError={showValidationErrors}
               requiredEmail={false}
-              showCountryPlaceholder={false}
             />
           </div>
         )}
@@ -640,7 +938,14 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
 
             {formData.shipMethod === 'document' && (
               <div className="space-y-6 pt-6 border-t border-gray-100 animate-in slide-in-from-bottom-4 duration-500">
-                <Input label={t('describeDocuments' as any)} value={formData.documentDescription} onChange={v => setFormData(p => ({ ...p, documentDescription: v }))} required ruleKey="summarizeShipment" showError={showValidationErrors} />
+                <Combobox 
+                  label={t('describeDocuments' as any)}
+                  value={formData.documentDescription}
+                  options={documentTypes}
+                  onChange={v => setFormData(p => ({ ...p, documentDescription: v }))}
+                  showError={showValidationErrors}
+                  required
+                />
                 <Input label={t('shipmentRef' as any)} value={formData.shipmentReference} onChange={v => setFormData(p => ({ ...p, shipmentReference: v }))} ruleKey="shipmentRef" showError={showValidationErrors} />
               </div>
             )}
@@ -699,7 +1004,7 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
                                 }}
                                 ruleKey="commodityCode"
                               />                              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                <Input label={t('quantity' as any)} type="number" value={item.quantity} onChange={v => { const n = [...formData.invoice.items]; n[i].quantity = parseInt(v) || 0; setFormData(p => ({ ...p, invoice: { ...p.invoice, items: n } })) }} required min={lineItemQuantityMin.toString()} />
+                                <Input label={t('quantity' as any)} type="number" value={item.quantity} onChange={v => { const n = [...formData.invoice.items]; n[i].quantity = parseInt(v) || 0; setFormData(p => { const newState = { ...p, invoice: { ...p.invoice, items: n } }; if (p.insurance.required) { const totalValue = n.reduce((s, a) => s + ((a.value || 0) * (a.quantity || 1)), 0); newState.insurance = { required: true, value: totalValue.toFixed(2) }; } return newState; }) }} required min={appConfig.validationRules.lineItem.quantity.min.toString()} />
                                 <div className="space-y-1.5 flex-grow">
                                   <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Units</label>
                                   <select className="w-full p-4 rounded-xl border-2 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-dhl-yellow outline-none font-bold hover:border-gray-200 transition-all border-gray-50 dark:border-gray-700" value={item.units || 'PCS'} onChange={e => { const n = [...formData.invoice.items]; n[i].units = e.target.value; setFormData(p => ({ ...p, invoice: { ...p.invoice, items: n } })) }}>
@@ -710,24 +1015,27 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
                                     ))}
                                   </select>
                                 </div>
-                                <Input label={t('weight' as any)} type="number" value={item.weight} onChange={v => { const n = [...formData.invoice.items]; n[i].weight = parseFloat(v) || 0; setFormData(p => ({ ...p, invoice: { ...p.invoice, items: n } })) }} required min={lineItemWeightMin.toString()} />
+                                <Input label={t('weight' as any)} type="number" value={item.weight} onChange={v => { const n = [...formData.invoice.items]; n[i].weight = parseFloat(v) || 0; setFormData(p => ({ ...p, invoice: { ...p.invoice, items: n } })) }} required min={appConfig.validationRules.lineItem.weight.min.toString()} />
                               </div>
                               <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1.5 flex-grow">
                                   <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Value (Per Item)</label>
                                   <div className="flex">
-                                    <input type="number" min={lineItemValueMin.toString()} value={item.value} onChange={e => { const n = [...formData.invoice.items]; n[i].value = parseFloat(e.target.value) || 0; setFormData(p => ({ ...p, invoice: { ...p.invoice, items: n } })) }} className="w-full p-4 rounded-l-xl border-2 border-r-0 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-dhl-yellow outline-none font-bold hover:border-gray-200 transition-all border-gray-50 dark:border-gray-700" />
+                                    <input type="number" step="1" min={appConfig.validationRules.lineItem.value.min.toString()} value={item.value} onChange={e => { const n = [...formData.invoice.items]; n[i].value = parseFloat(e.target.value) || 0; setFormData(p => { const newState = { ...p, invoice: { ...p.invoice, items: n } }; if (p.insurance.required) { const totalValue = n.reduce((s, a) => s + ((a.value || 0) * (a.quantity || 1)), 0); newState.insurance = { required: true, value: totalValue.toFixed(2) }; } return newState; }) }} className="w-full p-4 rounded-l-xl border-2 border-r-0 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-dhl-yellow outline-none font-bold hover:border-gray-200 transition-all border-gray-50 dark:border-gray-700" />
                                     <select value={formData.invoice.currency} onChange={e => { setFormData(p => ({ ...p, invoice: { ...p.invoice, currency: e.target.value } })) }} className="p-4 rounded-r-xl border-2 bg-gray-100 dark:bg-gray-700 focus:ring-2 focus:ring-dhl-yellow outline-none font-bold transition-all border-gray-50 dark:border-gray-600 min-w-[90px]">
                                       {(currenciesData as string[]).map(c => (<option key={c} value={c}>{c}</option>))}
                                     </select>
                                   </div>
                                 </div>
-                                <div className="space-y-1.5 flex-grow">
-                                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t('whereWasItMade' as any)}</label>
-                                  <select className="w-full p-4 rounded-xl border-2 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-dhl-yellow outline-none font-bold hover:border-gray-200 transition-all border-gray-50 dark:border-gray-700" value={item.origin} onChange={e => { const n = [...formData.invoice.items]; n[i].origin = e.target.value; setFormData(p => ({ ...p, invoice: { ...p.invoice, items: n } })) }}>
-                                    {countries.map(c => (<option key={c.countryCode} value={c.countryCode}>{c.countryName || c.name}</option>))}
-                                  </select>
-                                </div>
+                                  <Combobox 
+                                    label={t('whereWasItMade' as any)}
+                                    value={item.origin}
+                                    options={countries}
+                                    onChange={v => { const n = [...formData.invoice.items]; n[i].origin = v; setFormData(p => ({ ...p, invoice: { ...p.invoice, items: n } })) }}
+                                    displayValue={(c) => c.countryName || c.name}
+                                    showError={showValidationErrors}
+                                    required
+                                  />
                               </div>
                             </div>
                           )}
@@ -830,31 +1138,71 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
                       </div>
                       <div className="p-4 space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                          <Input label="Qty" type="number" value={pkg.quantity} onChange={v => {
-                            const newPkgs = [...formData.packages];
-                            newPkgs[index].quantity = parseInt(v) || 0;
-                            setFormData(p => ({ ...p, packages: newPkgs }));
-                          }} min={packageQuantityMin.toString()} max={packageQuantityMax.toString()} />
-                          <Input label="Weight (KG)" type="number" value={pkg.weight} onChange={v => {
-                            const newPkgs = [...formData.packages];
-                            newPkgs[index].weight = parseFloat(v) || 0;
-                            setFormData(p => ({ ...p, packages: newPkgs }));
-                          }} min={packageWeightMin.toString()} max={packageWeightMax.toString()} />
-                          <Input label="Width (CM)" type="number" value={pkg.width} onChange={v => {
-                            const newPkgs = [...formData.packages];
-                            newPkgs[index].width = parseFloat(v) || 0;
-                            setFormData(p => ({ ...p, packages: newPkgs }));
-                          }} min={packageDimensionsMin.toString()} max={packageDimensionsMax.toString()} />
-                          <Input label="Height (CM)" type="number" value={pkg.height} onChange={v => {
-                            const newPkgs = [...formData.packages];
-                            newPkgs[index].height = parseFloat(v) || 0;
-                            setFormData(p => ({ ...p, packages: newPkgs }));
-                          }} min={packageDimensionsMin.toString()} max={packageDimensionsMax.toString()} />
-                          <Input label="Depth (CM)" type="number" value={pkg.depth} onChange={v => {
-                            const newPkgs = [...formData.packages];
-                            newPkgs[index].depth = parseFloat(v) || 0;
-                            setFormData(p => ({ ...p, packages: newPkgs }));
-                          }} min={packageDimensionsMin.toString()} max={packageDimensionsMax.toString()} />
+                          <Input 
+                            label="Qty" 
+                            type="number" 
+                            value={pkg.quantity} 
+                            onChange={v => {
+                              const newPkgs = [...formData.packages];
+                              newPkgs[index].quantity = parseInt(v) || 0;
+                              setFormData(p => ({ ...p, packages: newPkgs }));
+                            }} 
+                            min={appConfig.validationRules.package.quantity.min.toString()} 
+                            max={appConfig.validationRules.package.quantity.max.toString()} 
+                            showError={showValidationErrors && validationErrors[`pkg-qty-${index}`]}
+                          />
+                          <Input 
+                            label="Weight (KG)" 
+                            type="number" 
+                            value={pkg.weight} 
+                            onChange={v => {
+                              const newPkgs = [...formData.packages];
+                              newPkgs[index].weight = parseFloat(v) || 0;
+                              setFormData(p => ({ ...p, packages: newPkgs }));
+                            }} 
+                            min={appConfig.validationRules.package.weight.min.toString()} 
+                            max={appConfig.validationRules.package.weight.max.toString()} 
+                            showError={showValidationErrors && validationErrors[`pkg-weight-${index}`]}
+                          />
+                          <Input 
+                            label="Width (CM)" 
+                            type="number" 
+                            value={pkg.width} 
+                            onChange={v => {
+                              const newPkgs = [...formData.packages];
+                              newPkgs[index].width = parseFloat(v) || 0;
+                              setFormData(p => ({ ...p, packages: newPkgs }));
+                            }} 
+                            min={appConfig.validationRules.package.dimensions.min.toString()} 
+                            max={appConfig.validationRules.package.dimensions.max.toString()} 
+                            showError={showValidationErrors && validationErrors[`pkg-width-${index}`]}
+                          />
+                          <Input 
+                            label="Height (CM)" 
+                            type="number" 
+                            value={pkg.height} 
+                            onChange={v => {
+                              const newPkgs = [...formData.packages];
+                              newPkgs[index].height = parseFloat(v) || 0;
+                              setFormData(p => ({ ...p, packages: newPkgs }));
+                            }} 
+                            min={appConfig.validationRules.package.dimensions.min.toString()} 
+                            max={appConfig.validationRules.package.dimensions.max.toString()} 
+                            showError={showValidationErrors && validationErrors[`pkg-height-${index}`]}
+                          />
+                          <Input 
+                            label="Depth (CM)" 
+                            type="number" 
+                            value={pkg.depth} 
+                            onChange={v => {
+                              const newPkgs = [...formData.packages];
+                              newPkgs[index].depth = parseFloat(v) || 0;
+                              setFormData(p => ({ ...p, packages: newPkgs }));
+                            }} 
+                            min={appConfig.validationRules.package.dimensions.min.toString()} 
+                            max={appConfig.validationRules.package.dimensions.max.toString()} 
+                            showError={showValidationErrors && validationErrors[`pkg-depth-${index}`]}
+                          />
                         </div>
                       </div>
                     </div>
@@ -886,7 +1234,7 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
               <Input label={t('shipperAccount')} value={formData.payment.shipperAccount} onChange={v => {
                 const newShipper = v;
                 let newBilling = formData.payment.billingAccount;
-                if (formData.payment.billingAccount === formData.payment.shipperAccount) {
+                if (formData.payment.useShipperForBilling) {
                   newBilling = newShipper;
                 }
                 updateSection('payment', { shipperAccount: newShipper, billingAccount: newBilling });
@@ -894,28 +1242,30 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
 
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
-                  <input type="checkbox" id="use-shipper-for-billing" checked={formData.payment.billingAccount === formData.payment.shipperAccount} onChange={e => {
-                    if (e.target.checked) {
-                      updateSection('payment', { billingAccount: formData.payment.shipperAccount });
-                    } else {
-                      updateSection('payment', { billingAccount: '' });
-                    }
+                  <input type="checkbox" id="use-shipper-for-billing" checked={formData.payment.useShipperForBilling} onChange={e => {
+                    const isChecked = e.target.checked;
+                    updateSection('payment', { useShipperForBilling: isChecked, billingAccount: isChecked ? formData.payment.shipperAccount : '' });
                   }} className="w-5 h-5 text-dhl-red focus:ring-dhl-yellow border-gray-300 rounded" />
                   <label htmlFor="use-shipper-for-billing" className="text-sm font-bold">{t('useShipperForBilling')}</label>
                 </div>
-                {formData.payment.billingAccount !== formData.payment.shipperAccount && (
+                {!formData.payment.useShipperForBilling && (
                   <Input label={t('billingAccount')} value={formData.payment.billingAccount} onChange={v => updateSection('payment', { billingAccount: v })} required ruleKey="accountNumber" inputMode="numeric" pattern="[0-9]*" />
                 )}
               </div>
 
               <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <input type="checkbox" id="receiver-pays-checkbox" checked={formData.payment.dutiesRole === 'receiver'} onChange={e => {
-                    updateSection('payment', { dutiesRole: e.target.checked ? 'receiver' : 'shipper', dutiesAccount: e.target.checked ? '' : formData.payment.dutiesAccount });
-                  }} className="w-5 h-5 text-dhl-red focus:ring-dhl-yellow border-gray-300 rounded" />
-                  <label htmlFor="receiver-pays-checkbox" className="text-sm font-bold">{t('receiverWillPay')}</label>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t('dutiesAccount')}</label>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer bg-gray-50 dark:bg-gray-700 p-4 rounded-xl border-2 border-gray-100 dark:border-gray-600 hover:border-dhl-yellow transition-all">
+                    <input type="checkbox" id="receiver-pays-checkbox" checked={formData.payment.dutiesRole === 'receiver'} onChange={e => {
+                      updateSection('payment', { dutiesRole: e.target.checked ? 'receiver' : 'shipper', dutiesAccount: e.target.checked ? '' : formData.payment.dutiesAccount });
+                    }} className="w-5 h-5 text-dhl-red focus:ring-dhl-yellow border-gray-300 rounded" />
+                    <span className="text-sm font-bold whitespace-nowrap">{t('receiverWillPay')}</span>
+                  </label>
+                  <div className="flex-grow">
+                    <Input label="" value={formData.payment.dutiesAccount} onChange={v => updateSection('payment', { dutiesAccount: v })} required={formData.payment.dutiesRole !== 'receiver'} ruleKey="accountNumber" disabled={formData.payment.dutiesRole === 'receiver'} inputMode="numeric" pattern="[0-9]*" placeholder="Account Number" />
+                  </div>
                 </div>
-                <Input label={t('dutiesAccount')} value={formData.payment.dutiesAccount} onChange={v => updateSection('payment', { dutiesAccount: v })} required={formData.payment.dutiesRole !== 'receiver'} ruleKey="accountNumber" disabled={formData.payment.dutiesRole === 'receiver'} inputMode="numeric" pattern="[0-9]*" />
               </div>
 
               <div className="space-y-4">
@@ -928,214 +1278,359 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
           </div>
         )}
 
-        {/* STEP 5: CUSTOMS DOCS (Invoice) */}
+        {/* STEP 5: CUSTOMS DOCS (Uploads) */}
         {currentStep === 5 && (
           <div className="space-y-6 animate-in slide-in-from-right duration-300">
             <div className="card space-y-6">
-              <div className="flex justify-between items-center border-b border-gray-100 pb-4">
-                <div className="flex items-center gap-3 text-dhl-red">
-                  <FileText className="w-6 h-6" />
-                  <h3 className="text-xl font-bold uppercase tracking-tight">{t('docsStep')}</h3>
+              <div className="flex items-center gap-3 text-dhl-red border-b border-gray-100 pb-4">
+                <FileText className="w-6 h-6" />
+                <h3 className="text-xl font-bold uppercase tracking-tight">{t('docsStep')}</h3>
+              </div>
+
+              <div className="space-y-4">
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400 leading-relaxed">
+                  {t('uploadDocsDesc1' as any) || "To speed up the clearance process, you can upload your commercial documents for this shipment."}
+                </p>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400 leading-relaxed">
+                  {t('uploadDocsDesc2' as any) || "This is especially helpful for international shipments requiring customs clearance."}
+                </p>
+
+                <div className="pt-4 border-t border-gray-50 dark:border-gray-800">
+                  <p className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-4">
+                    {t('uploadDocsQuestion' as any) || "Do you want to upload your commercial documents?"}
+                  </p>
+                  <label className="flex items-center gap-3 cursor-pointer group w-fit">
+                    <input 
+                      type="checkbox" 
+                      checked={formData.invoice.uploadDocuments} 
+                      onChange={e => updateSection('invoice', { uploadDocuments: e.target.checked })}
+                      className="w-6 h-6 rounded-md border-gray-300 text-dhl-red focus:ring-dhl-red transition-all cursor-pointer" 
+                    />
+                    <span className="font-bold text-gray-900 dark:text-white uppercase tracking-wide group-hover:text-dhl-red transition-colors">
+                      {t('yes' as any) || "Yes"}
+                    </span>
+                  </label>
                 </div>
-                <button onClick={addInvoiceItem} className="btn-secondary flex items-center gap-2 py-2 px-4 text-xs">
-                  <Plus className="w-4 h-4" />
-                  {t('addLineItem')}
-                </button>
-              </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="text-[10px] text-gray-400 uppercase tracking-widest">
-                      <th className="pb-4 pr-4">Description</th>
-                      <th className="pb-4 px-4 w-20 text-center">Qty</th>
-                      <th className="pb-4 px-4 w-32 text-center">Weight</th>
-                      <th className="pb-4 px-4 w-40">Value</th>
-                      <th className="pb-4 px-4 w-24">Origin</th>
-                      <th className="pb-4 pl-4 w-16"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y dark:divide-gray-800">
-                    {formData.invoice.items.map((item, i) => (
-                      <tr key={i} className="group hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
-                        <td className="py-4 pr-4">
-                          <input
-                            value={item.description}
-                            onChange={e => {
-                              const items = [...formData.invoice.items];
-                              items[i].description = e.target.value;
-                              updateSection('invoice', { items });
-                            }}
-                            className="w-full bg-transparent border-b border-transparent focus:border-dhl-yellow outline-none font-bold py-1"
-                            placeholder="What are you shipping?"
+                {formData.invoice.uploadDocuments && (
+                  <div className="animate-in slide-in-from-top-4 duration-300 space-y-6 pt-6 border-t border-gray-50 dark:border-gray-800">
+                    {formData.invoice.creationMode === 'own' ? (
+                      <div>
+                        <p className="text-sm font-black text-dhl-red uppercase italic mb-4">
+                          {t('uploadLabelOwnInvoice' as any) || "Please upload your own commercial invoice below."}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <p className="text-sm font-black text-dhl-red uppercase italic mb-2">
+                          {t('uploadLabelCreateInvoice' as any) || "Since you chose to create an invoice, you can optionally upload other documents."}
+                        </p>
+                        <label className="flex items-center gap-3 cursor-pointer group w-fit">
+                          <input 
+                            type="checkbox" 
+                            checked={formData.invoice.optionalUpload} 
+                            onChange={e => updateSection('invoice', { optionalUpload: e.target.checked })}
+                            className="w-5 h-5 rounded border-gray-300 text-dhl-red focus:ring-dhl-red transition-all cursor-pointer" 
                           />
-                        </td>
-                        <td className="py-4 px-4">
-                          <input
-                            type="number"
-                            value={item.quantity}
-                            onChange={e => {
-                              const items = [...formData.invoice.items];
-                              items[i].quantity = parseInt(e.target.value) || 0;
-                              updateSection('invoice', { items });
-                            }}
-                            className="w-full text-center bg-transparent border-b border-transparent focus:border-dhl-yellow outline-none font-bold py-1"
-                          />
-                        </td>
-                        <td className="py-4 px-4">
-                          <div className="flex items-center gap-1 justify-center">
-                            <input
-                              type="number"
-                              value={item.weight}
-                              onChange={e => {
-                                const items = [...formData.invoice.items];
-                                items[i].weight = parseFloat(e.target.value) || 0;
-                                updateSection('invoice', { items });
-                              }}
-                              className="w-full text-center bg-transparent border-b border-transparent focus:border-dhl-yellow outline-none font-bold py-1"
-                            />
-                            <span className="text-[10px] text-gray-400">KG</span>
+                          <span className="text-xs font-bold text-gray-500 uppercase tracking-wide group-hover:text-gray-900 transition-colors">
+                            {t('uploadOptional' as any) || "Upload other optional documents"}
+                          </span>
+                        </label>
+                      </div>
+                    )}
+
+                    {(formData.invoice.creationMode === 'own' || formData.invoice.optionalUpload) && (
+                      <div className="space-y-4">
+                        <div className="card bg-gray-50 dark:bg-gray-900/40 border-dashed border-2 border-gray-200 dark:border-gray-800 p-10 text-center space-y-4 group hover:border-dhl-yellow transition-all">
+                          <div className="w-16 h-16 bg-white dark:bg-gray-800 rounded-2xl shadow-sm flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
+                            <Upload className="w-8 h-8 text-dhl-red" />
                           </div>
-                        </td>
-                        <td className="py-4 px-4">
-                          <div className="flex items-center gap-1">
-                            <input
-                              type="number"
-                              value={item.value}
-                              onChange={e => {
-                                const items = [...formData.invoice.items];
-                                items[i].value = parseFloat(e.target.value) || 0;
-                                updateSection('invoice', { items });
-                              }}
-                              className="w-full bg-transparent border-b border-transparent focus:border-dhl-yellow outline-none font-bold py-1"
-                            />
-                            <span className="text-[10px] font-bold text-dhl-red">THB</span>
+                          <div>
+                            <h4 className="text-lg font-bold">
+                              {formData.invoice.creationMode === 'own' ? 'Upload Commercial Invoice' : 'Upload Additional Documents'}
+                            </h4>
+                            <p className="text-sm text-gray-500">
+                              {t('browseForFile' as any) || 'Browse for file'} {t('orDropHere' as any) || 'or drop here'}
+                            </p>
                           </div>
-                        </td>
-                        <td className="py-4 px-4">
-                          <input
-                            value={item.origin}
-                            onChange={e => {
-                              const items = [...formData.invoice.items];
-                              items[i].origin = e.target.value;
-                              updateSection('invoice', { items });
-                            }}
-                            className="w-full text-center bg-transparent border-b border-transparent focus:border-dhl-yellow outline-none font-bold py-1"
-                          />
-                        </td>
-                        <td className="py-4 pl-4 text-right">
-                          <button onClick={() => removeInvoiceItem(i)} className="text-gray-300 hover:text-dhl-red opacity-0 group-hover:opacity-100 transition-all">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                          <input type="file" multiple className="hidden" id="file-upload" onChange={(e) => {
+                            const files = Array.from(e.target.files || []);
+                            // English only check from legacy logic
+                            const englishOnly = files.every(f => /^[A-Za-z0-9\s._-]+$/.test(f.name));
+                            if (!englishOnly) {
+                              setValidationMessage('File name must be in English characters only.');
+                              setShowValidationErrors(true);
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                              return;
+                            }
+                            updateSection('invoice', { uploadedDocs: [...formData.invoice.uploadedDocs, ...files] });
+                          }} />
+                          <label htmlFor="file-upload" className="btn-secondary inline-block py-3 px-8 cursor-pointer shadow-sm hover:shadow-md transition-all">
+                            Choose Files
+                          </label>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6">
-                <StatBox label={t('totalUnits')} value={formData.invoice.items.reduce((s, i) => s + i.quantity, 0)} color="text-gray-900" />
-                <StatBox label={t('totalWeight')} value={`${totalInvoiceWeight.toFixed(2)} KG`} color="text-gray-900" />
-                <StatBox label={t('totalValue')} value={`${totalInvoiceValue.toLocaleString()} THB`} color="text-dhl-red" active />
-              </div>
-            </div>
+                          <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest space-y-1">
+                            <p>{t('fileTypesAllowed' as any) || 'Allowed: PDF, JPG, PNG, TIFF'}</p>
+                            <p>{t('maxFileSize' as any) || 'Max total size: 10MB'}</p>
+                            <p>{t('fileNameEnglishOnly' as any) || 'Filename must be English only'}</p>
+                          </div>
 
-            {/* File Uploader */}
-            <div className="card bg-gray-50 dark:bg-gray-900/40 border-dashed border-2 border-gray-200 dark:border-gray-800 p-10 text-center space-y-4 group hover:border-dhl-yellow transition-all">
-              <div className="w-16 h-16 bg-white dark:bg-gray-800 rounded-2xl shadow-sm flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
-                <Upload className="w-8 h-8 text-dhl-red" />
+                          {formData.invoice.uploadedDocs.length > 0 && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-4">
+                              {formData.invoice.uploadedDocs.map((f, i) => (
+                                <div key={i} className="bg-white dark:bg-gray-800 px-4 py-3 rounded-xl text-xs font-bold flex items-center justify-between border shadow-sm group/fixed animate-in zoom-in-95">
+                                  <div className="flex items-center gap-2 truncate pr-2">
+                                    <FileText className="w-4 h-4 text-dhl-red" /> 
+                                    <div className="truncate text-left">
+                                      <p className="truncate">{f.name}</p>
+                                      <p className="text-[9px] text-gray-400">{(f.size/1024).toFixed(1)} KB</p>
+                                    </div>
+                                  </div>
+                                  <button onClick={() => {
+                                    const docs = [...formData.invoice.uploadedDocs];
+                                    docs.splice(i, 1);
+                                    updateSection('invoice', { uploadedDocs: docs });
+                                  }} className="p-1 hover:bg-red-50 text-gray-300 hover:text-dhl-red rounded-lg transition-colors">
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-              <div>
-                <h4 className="text-lg font-bold">Upload Commercial Documents</h4>
-                <p className="text-sm text-gray-500">Drag and drop or click to select files (PDF, JPG, PNG)</p>
-              </div>
-              <input type="file" multiple className="hidden" id="file-upload" onChange={(e) => {
-                const files = Array.from(e.target.files || []);
-                updateSection('invoice', { uploadedDocs: [...formData.invoice.uploadedDocs, ...files] });
-              }} />
-              <label htmlFor="file-upload" className="btn-secondary inline-block py-3 px-8 cursor-pointer">Choose Files</label>
-
-              {formData.invoice.uploadedDocs.length > 0 && (
-                <div className="flex flex-wrap gap-2 justify-center pt-4">
-                  {formData.invoice.uploadedDocs.map((f, i) => (
-                    <div key={i} className="bg-white dark:bg-gray-800 px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 border">
-                      <FileText className="w-3 h-3" /> {f.name}
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         )}
 
         {/* STEP 6: PICKUP */}
         {currentStep === 6 && (
-          <div className="card space-y-10 animate-in slide-in-from-right duration-300">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-              <div className="flex items-center gap-3 text-dhl-red">
+          <div className="space-y-6 animate-in slide-in-from-right duration-300">
+            <div className="card space-y-6">
+              <div className="flex items-center gap-3 text-dhl-red border-b border-gray-100 pb-4">
                 <Truck className="w-6 h-6" />
                 <h3 className="text-xl font-bold uppercase tracking-tight">{t('pickupStep')}</h3>
               </div>
-              <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <button
+                  type="button"
                   onClick={() => updateSection('pickup', { required: true })}
-                  className={`px-6 py-2 rounded-lg text-xs font-black uppercase transition-all ${formData.pickup.required ? 'bg-dhl-red text-white' : 'text-gray-400'}`}
+                  className={`p-6 rounded-2xl flex flex-col items-center justify-center text-center gap-4 transition-all border-2 ${
+                    formData.pickup.required 
+                      ? 'border-dhl-yellow bg-yellow-50/50 dark:bg-yellow-900/10 shadow-lg shadow-yellow-500/10' 
+                      : 'border-gray-100 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 bg-white dark:bg-gray-900'
+                  }`}
                 >
-                  Yes
+                  <div className={`p-4 rounded-full transition-colors ${formData.pickup.required ? 'bg-dhl-yellow text-dhl-red' : 'bg-gray-50 dark:bg-gray-800 text-gray-400'}`}>
+                    <Truck className="w-8 h-8" />
+                  </div>
+                  <span className={`font-bold text-lg uppercase tracking-tight ${formData.pickup.required ? 'text-dhl-red' : 'text-gray-500 dark:text-gray-400'}`}>
+                    {t('pickupYes' as any) || 'Schedule a Pickup'}
+                  </span>
                 </button>
+
                 <button
+                  type="button"
                   onClick={() => updateSection('pickup', { required: false })}
-                  className={`px-6 py-2 rounded-lg text-xs font-black uppercase transition-all ${!formData.pickup.required ? 'bg-dhl-red text-white' : 'text-gray-400'}`}
+                  className={`p-6 rounded-2xl flex flex-col items-center justify-center text-center gap-4 transition-all border-2 ${
+                    !formData.pickup.required 
+                      ? 'border-dhl-yellow bg-yellow-50/50 dark:bg-yellow-900/10 shadow-lg shadow-yellow-500/10' 
+                      : 'border-gray-100 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 bg-white dark:bg-gray-900'
+                  }`}
                 >
-                  No
+                  <div className={`p-4 rounded-full transition-colors ${!formData.pickup.required ? 'bg-dhl-yellow text-dhl-red' : 'bg-gray-50 dark:bg-gray-800 text-gray-400'}`}>
+                    <XCircle className="w-8 h-8" />
+                  </div>
+                  <span className={`font-bold text-lg uppercase tracking-tight ${!formData.pickup.required ? 'text-dhl-red' : 'text-gray-500 dark:text-gray-400'}`}>
+                    {t('pickupNo' as any) || 'Drop off at Service Point'}
+                  </span>
                 </button>
               </div>
+
+              {formData.pickup.required ? (
+                <div className="space-y-12 animate-in fade-in duration-300 pt-4">
+                  {/* 1. Date */}
+                  <div className="md:w-1/2 space-y-6">
+                    <h4 className="font-bold text-gray-900 dark:text-white uppercase tracking-tight flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-2 mb-4">
+                      <Clock className="w-5 h-5 text-dhl-red" /> {t('pickupSendingOn' as any) || "Schedule a Pickup"}
+                    </h4>
+                    <Input 
+                      label={t('pickupSendingOn' as any) || "Pickup Date"} 
+                      type="date" 
+                      value={formData.shipDate} 
+                      min={new Date().toISOString().split('T')[0]}
+                      onChange={v => updateSection('pickup', { date: v })} 
+                    />
+                  </div>
+
+                  {/* 2. Window Slider */}
+                  <div className="space-y-12">
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Pickup Window (Ready/Close)</label>
+                      <div className="relative h-20 flex items-center px-4 bg-gray-50/50 dark:bg-gray-900/30 rounded-3xl border border-gray-100 dark:border-gray-800">
+                        <div className="absolute left-6 right-6 h-1.5 bg-gray-200 dark:bg-gray-800 rounded-full" />
+                        <div 
+                          className="absolute h-1.5 bg-dhl-yellow rounded-full transition-all" 
+                          style={{ 
+                            left: `calc(24px + ${((toMinutes(formData.pickup.readyTime) - 360) / (1080 - 360)) * (100 - (48 / 100)) }%)`, 
+                            right: `calc(24px + ${100 - ((toMinutes(formData.pickup.closeTime) - 360) / (1080 - 360)) * (100 - (48 / 100)) }%)` 
+                          }}
+                        />
+                        
+                        {/* Thumb Labels */}
+                        <div 
+                          className="absolute -top-6 transition-all" 
+                          style={{ left: `calc(24px + ${((toMinutes(formData.pickup.readyTime) - 360) / (1080 - 360)) * (100 - (48 / 100)) }%)`, transform: 'translateX(-50%)' }}
+                        >
+                          <span className="bg-dhl-red text-white text-[10px] font-black py-1 px-2 rounded-lg shadow-lg whitespace-nowrap">
+                            {formatTime(toMinutes(formData.pickup.readyTime))}
+                          </span>
+                        </div>
+                        <div 
+                          className="absolute -top-6 transition-all" 
+                          style={{ left: `calc(24px + ${((toMinutes(formData.pickup.closeTime) - 360) / (1080 - 360)) * (100 - (48 / 100)) }%)`, transform: 'translateX(-50%)' }}
+                        >
+                          <span className="bg-dhl-red text-white text-[10px] font-black py-1 px-2 rounded-lg shadow-lg whitespace-nowrap">
+                            {formatTime(toMinutes(formData.pickup.closeTime))}
+                          </span>
+                        </div>
+
+                        <input 
+                          type="range" min={360} max={1080} step={15} 
+                          value={toMinutes(formData.pickup.readyTime)} 
+                          onChange={(e) => {
+                            const val = Math.min(Number(e.target.value), toMinutes(formData.pickup.closeTime) - 120);
+                            const h = Math.floor(val / 60);
+                            const m = val % 60;
+                            updateSection('pickup', { readyTime: `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}` });
+                          }}
+                          className="absolute left-6 right-6 appearance-none bg-transparent pointer-events-none z-30 h-1.5 slider-thumb-only"
+                        />
+                        <input 
+                          type="range" min={360} max={1080} step={15} 
+                          value={toMinutes(formData.pickup.closeTime)} 
+                          onChange={(e) => {
+                            const val = Math.max(Number(e.target.value), toMinutes(formData.pickup.readyTime) + 120);
+                            const h = Math.floor(val / 60);
+                            const m = val % 60;
+                            updateSection('pickup', { closeTime: `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}` });
+                          }}
+                          className="absolute left-6 right-6 appearance-none bg-transparent pointer-events-none z-30 h-1.5 slider-thumb-only"
+                        />
+
+                        {/* Scale */}
+                        <div className="absolute -bottom-6 left-6 right-6 flex justify-between px-1">
+                          {[360, 480, 600, 720, 840, 960, 1080].map(mins => (
+                            <div key={mins} className="flex flex-col items-center">
+                              <div className="w-[1px] h-2 bg-gray-300 dark:bg-gray-700 mb-1" />
+                              <span className="text-[9px] font-bold text-gray-400 uppercase">{formatTime(mins)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                  </div>
+
+                  {/* 3. Location */}
+                  <div className="md:w-1/2">
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 mb-2">{t('pickupLocation' as any) || "Pickup Location"}</label>
+                      <select
+                        value={formData.pickup.location}
+                        onChange={e => updateSection('pickup', { location: e.target.value })}
+                        className="w-full p-4 rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 font-bold focus:ring-2 focus:ring-dhl-yellow outline-none"
+                      >
+                        {pickupLocations.map((l: string) => <option key={l} value={l}>{l}</option>)}
+                      </select>
+                  </div>
+
+                  {/* 4. Total Weight & Instructions */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                     <Input label={t('pickupTotalWeight' as any) || "Total Weight"} value={formData.shipMethod === 'package' ? `${totalPackageWeight.toFixed(3)} KG` : `${totalInvoiceWeight.toFixed(3)} KG`} disabled />
+                     <Input label={t('pickupInstructions' as any) || "Instructions for the courier"} value={formData.pickup.instructions} onChange={v => updateSection('pickup', { instructions: v })} />
+                  </div>
+
+                  {/* 5. Pickup Address Section */}
+                  <div className="p-6 bg-gray-50 dark:bg-gray-900/50 rounded-2xl border border-gray-100 dark:border-gray-800 hover:border-gray-200 transition-colors">
+                    <div className="flex justify-between items-center mb-4 border-b border-gray-100 dark:border-gray-800 pb-4">
+                      <h4 className="font-bold text-gray-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
+                        <MapPin className="w-5 h-5 text-dhl-red" /> {t('pickupAddress' as any) || "Pickup Address"}
+                      </h4>
+                      {!isEditingPickupAddress ? (
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            setTempPickupAddress(formData.pickup.address);
+                            setIsEditingPickupAddress(true);
+                          }}
+                          className="text-xs font-black text-dhl-red uppercase hover:text-dhl-yellow transition-colors flex items-center gap-1"
+                        >
+                          <Trash2 className="w-3 h-3" /> {t('editAddress' as any) || "Edit"}
+                        </button>
+                      ) : (
+                        <div className="flex gap-4">
+                          <button 
+                            onClick={() => {
+                              updateSection('pickup', { address: tempPickupAddress, isAddressManuallyEdited: true });
+                              setIsEditingPickupAddress(false);
+                            }}
+                            className="text-xs font-black text-green-600 uppercase hover:text-green-700 font-bold"
+                          >
+                            Save
+                          </button>
+                          <button 
+                            onClick={() => setIsEditingPickupAddress(false)}
+                            className="text-xs font-black text-gray-400 uppercase hover:text-gray-500 font-bold"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {isEditingPickupAddress ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in fade-in duration-300">
+                        <Input label="Name" value={tempPickupAddress.name} onChange={v => setTempPickupAddress({...tempPickupAddress, name: v})} required />
+                        <Input label="Company" value={tempPickupAddress.company} onChange={v => setTempPickupAddress({...tempPickupAddress, company: v})} required />
+                        <div className="sm:col-span-2">
+                          <Input label="Address 1" value={tempPickupAddress.address1} onChange={v => setTempPickupAddress({...tempPickupAddress, address1: v})} required />
+                        </div>
+                        <Input label="Address 2" value={tempPickupAddress.address2} onChange={v => setTempPickupAddress({...tempPickupAddress, address2: v})} />
+                        <Input label="Address 3" value={tempPickupAddress.address3} onChange={v => setTempPickupAddress({...tempPickupAddress, address3: v})} />
+                        <Input label="City" value={tempPickupAddress.city} onChange={v => setTempPickupAddress({...tempPickupAddress, city: v})} required />
+                        <Input label="Postal Code" value={tempPickupAddress.postalCode} onChange={v => setTempPickupAddress({...tempPickupAddress, postalCode: v})} required />
+                        <Input label="Phone" value={tempPickupAddress.phone} onChange={v => setTempPickupAddress({...tempPickupAddress, phone: v})} required />
+                      </div>
+                    ) : (
+                      <div className="space-y-3 animate-in fade-in duration-300 py-2">
+                         <p className="font-black italic text-gray-900 dark:text-white text-lg uppercase tracking-tight">
+                           {formData.pickup.address.name}, {formData.pickup.address.company}
+                         </p>
+                         <p className="text-sm font-bold text-gray-500 leading-relaxed">
+                          {formData.pickup.address.address1}
+                          {formData.pickup.address.address2 && <>, {formData.pickup.address.address2}</>}
+                          {formData.pickup.address.address3 && <>, {formData.pickup.address.address3}</>}
+                         </p>
+                         <p className="text-sm font-bold text-gray-900 dark:text-white tracking-widest uppercase">
+                          {formData.pickup.address.city}, {formData.pickup.address.postalCode}
+                         </p>
+                         <p className="text-sm font-black text-dhl-red italic">
+                           Tel: {formData.pickup.address.phone}
+                         </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="py-12 text-center space-y-4 bg-gray-50 dark:bg-gray-900/50 rounded-2xl border border-gray-100 dark:border-gray-800 border-dashed hover:border-gray-200 transition-colors">
+                  <a href="https://www.dhl.com/discover/th-th/contact-us" target="_blank" rel="noopener noreferrer" className="text-dhl-red hover:text-dhl-yellow font-black uppercase tracking-widest text-lg transition-colors underline block w-full h-full">
+                    {t('pickupDropOffLink' as any) || "Find a drop-off location"}
+                  </a>
+                </div>
+              )}
             </div>
-
-            {formData.pickup.required ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                <div className="space-y-6">
-                  <h4 className="font-bold text-gray-500 uppercase text-xs tracking-widest flex items-center gap-2">
-                    <Clock className="w-4 h-4" /> Schedule Times
-                  </h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Input label="Ready Time" type="time" value={formData.pickup.readyTime} onChange={v => updateSection('pickup', { readyTime: v })} />
-                    <Input label="Close Time" type="time" value={formData.pickup.closeTime} onChange={v => updateSection('pickup', { closeTime: v })} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Location</label>
-                    <select
-                      value={formData.pickup.location}
-                      onChange={e => updateSection('pickup', { location: e.target.value })}
-                      className="w-full p-4 rounded-xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 font-bold focus:ring-2 focus:ring-dhl-yellow outline-none"
-                    >
-                      {['Reception', 'Loading Dock', 'Front Desk', 'Security', 'Other'].map(l => <option key={l} value={l}>{l}</option>)}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="space-y-6">
-                  <h4 className="font-bold text-gray-500 uppercase text-xs tracking-widest flex items-center gap-2">
-                    <MapPin className="w-4 h-4" /> Pickup Address
-                  </h4>
-                  <div className="p-6 bg-yellow-50/50 dark:bg-gray-900/50 border border-dhl-yellow/20 rounded-3xl relative">
-                    <p className="font-black italic text-dhl-red">{formData.shipper.company || formData.shipper.name}</p>
-                    <p className="text-sm opacity-70 mt-1">{formData.shipper.address1}, {formData.shipper.city}</p>
-                    <div className="absolute top-4 right-4 bg-dhl-yellow text-dhl-red p-1 rounded-full"><CheckCircle2 className="w-3 h-3" /></div>
-                  </div>
-                  <Input label="Special Instructions" value={formData.pickup.instructions} onChange={v => updateSection('pickup', { instructions: v })} />
-                </div>
-              </div>
-            ) : (
-              <div className="py-20 text-center space-y-4">
-                <div className="w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto">
-                  <Truck className="w-10 h-10 text-gray-400" />
-                </div>
-                <h4 className="text-xl font-bold">No Pickup Requested</h4>
-                <p className="text-sm text-gray-500">You will need to drop off your shipment at a DHL Service Point.</p>
-              </div>
-            )}
           </div>
         )}
 

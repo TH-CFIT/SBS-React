@@ -26,12 +26,16 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateHome }) => {
 
   return (
     <header className="bg-dhl-yellow shadow-md py-4 px-6 md:px-10 flex justify-between items-center relative z-20 w-full transition-all duration-300">
-      <div 
+      <div
         onClick={onNavigateHome}
         className="flex items-center gap-3 group cursor-pointer"
       >
-        <div className="bg-white p-1 rounded transition-transform group-hover:scale-105">
-           <span className="text-2xl font-black text-dhl-red italic">DHL</span>
+        <div className="p-1 rounded transition-transform group-hover:scale-105 flex items-center justify-center">
+          <img
+            src="/icon/DHL_Logo.png"
+            alt="DHL Logo"
+            className="h-10 w-auto object-contain"
+          />
         </div>
         <span className="text-xl md:text-2xl font-black text-dhl-red uppercase tracking-tighter flex flex-col leading-tight">
           Backup Solution
@@ -41,7 +45,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateHome }) => {
 
       {/* Desktop Nav */}
       <nav className="hidden sm:flex items-center space-x-4">
-        <button 
+        <button
           onClick={onNavigateHome}
           className="utility-button bg-white/50 px-3 flex items-center gap-2 font-bold text-dhl-red"
         >
@@ -49,7 +53,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateHome }) => {
           {t('homepage')}
         </button>
         <div className="relative">
-          <button 
+          <button
             onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
             className="utility-button px-4 py-2 flex items-center gap-2 bg-white/50 backdrop-blur-sm"
           >
@@ -66,7 +70,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateHome }) => {
             </div>
           )}
         </div>
-        
+
         <button onClick={toggleTheme} className="utility-button bg-white/50 backdrop-blur-sm">
           {isDarkMode ? <Sun className="w-5 h-5 text-dhl-red" /> : <Moon className="w-5 h-5 text-dhl-red" />}
         </button>
@@ -90,10 +94,10 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateHome }) => {
                 <X className="w-6 h-6" />
               </button>
             </div>
-            
+
             <button onClick={() => { onNavigateHome(); setIsMenuOpen(false); }} className="w-full p-4 rounded-xl text-left border flex items-center gap-3 bg-dhl-yellow/10 border-dhl-yellow font-bold">
-               <Home className="w-5 h-5" />
-               {t('homepage')}
+              <Home className="w-5 h-5" />
+              {t('homepage')}
             </button>
 
             <div className="space-y-2">
