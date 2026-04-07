@@ -31,27 +31,48 @@
 @layer utilities {
   .slider-thumb-only {
     -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    border: none;
+    outline: none;
     pointer-events: none;
   }
   .slider-thumb-only::-webkit-slider-thumb {
     -webkit-appearance: none;
-    pointer-events: auto;
-    width: 20px;
-    height: 20px;
-    background: #D40511;
-    border: 3px solid #FFCC00;
-    border-radius: 50%;
+    appearance: none;
+    width: 32px;
+    height: 32px;
+    background: transparent;
     cursor: pointer;
-    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    border-radius: 50%;
+    pointer-events: auto;
   }
   .slider-thumb-only::-moz-range-thumb {
-    pointer-events: auto;
-    width: 20px;
-    height: 20px;
-    background: #D40511;
-    border: 3px solid #FFCC00;
-    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    background: transparent;
     cursor: pointer;
-    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    border: none;
+    border-radius: 50%;
+    pointer-events: auto;
   }
 }
+
+/* Nouislider Custom DHL overrides */
+.noUi-target { background: #e5e7eb; border: 1px solid #d1d5db; box-shadow: none; }
+.dark .noUi-target { background: #374151; border-color: #4b5563; }
+.noUi-connect { background: #6b7280; }
+.dark .noUi-connect { background: #9ca3af; }
+.noUi-handle { border: 1px solid #d1d5db; border-radius: 50%; background: #fbbf24; box-shadow: none; cursor: grab; }
+.noUi-handle:active { cursor: grabbing; }
+.noUi-handle:focus { outline: none; }
+.noUi-handle::before, .noUi-handle::after { display: none; }
+.noUi-tooltip { background: #fbbf24; color: #1f2937; border: none; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; padding: 2px 6px; transform: translateY(5px); }
+
+.noUi-pips { position: absolute; color: #9ca3af; }
+.dark .noUi-pips { color: #6b7280; }
+.noUi-pips-horizontal { padding: 10px 0; height: 30px; top: 100%; left: 0; width: 100%; margin-top: 5px; }
+.noUi-marker-horizontal.noUi-marker { height: 8px; }
+.noUi-marker-horizontal.noUi-marker-large { height: 12px; }
+.noUi-value-horizontal { padding-top: 5px; transform: translate(-50%, 0); }
+.noUi-value-large { font-weight: 600; font-size: 0.75rem; }

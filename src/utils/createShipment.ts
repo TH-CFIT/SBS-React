@@ -205,17 +205,21 @@ export const buildShipmentPayload = (formData: any, isTestEnvironment: boolean =
         payload.pickup = { isRequested: false };
     }
     
+    const isA4 = formData.printSize === 'A4';
+    const labelTemplate = isA4 ? "ECOM26_84_A4_001" : "ECOM26_84_001";
+    const waybillTemplate = isA4 ? "ARCH_8X4_A4_002" : "ARCH_8X4_001";
+
     payload.outputImageProperties = {
         encodingFormat: "pdf",
         imageOptions: [
             {
                 typeCode: "label",
-                templateName: "ECOM26_84_001",
+                templateName: labelTemplate,
                 isRequested: true,
             },
 			{
                 typeCode: "waybillDoc",
-                templateName: "ARCH_8X4_001",
+                templateName: waybillTemplate,
                 isRequested: true,
             },
             {

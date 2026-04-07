@@ -4,7 +4,7 @@ import {
   User, MapPin, Package, CreditCard,
   FileText, Truck, ClipboardList,
   ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Plus, Trash2,
-  AlertCircle, CheckCircle2, Check, Info, Upload, Clock, List, Globe, XCircle
+  AlertCircle, CheckCircle2, Check, Info, Upload, Clock, List, Globe, XCircle, Printer, Box
 } from 'lucide-react';
 
 import countriesData from '../../data/countries.json';
@@ -15,6 +15,8 @@ import documentTypes from '../../data/documentTypes.json';
 import uomData from '../../data/uom.json';
 import pickupLocations from '../../data/pickupLocations.json';
 import { buildShipmentPayload } from '../utils/createShipment';
+import PickupWindowSlider from '../components/PickupWindowSlider';
+import "nouislider/dist/nouislider.css";
 
 
 // --- Utils ---
@@ -405,6 +407,53 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
   const [validationMessage, setValidationMessage] = useState('');
   const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>({ 0: true });
   const [validationErrors, setValidationErrors] = useState<Record<string, boolean>>({});
+  const [isDragging, setIsDragging] = useState(false);
+  const [printSize, setPrintSize] = useState<'A4' | 'Label' | null>(null);
+
+  const handleFileAction = (files: File[]) => {
+    if (files.length === 0) return;
+
+    // Validate 1 file only
+    if (files.length > 1 || formData.invoice.uploadedDocs.length >= 1) {
+       setValidationMessage('You can upload only 1 file. Please remove the existing file before uploading a new one.');
+       setShowValidationErrors(true);
+       window.scrollTo({ top: 0, behavior: 'smooth' });
+       return;
+    }
+
+    const file = files[0];
+
+    // Validate file size not over 5MB
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setValidationMessage('File size must not exceed 5MB.');
+      setShowValidationErrors(true);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    // Validate file type
+    const allowedExtensions = ['jpg', 'jpe', 'jpeg', 'gif', 'png', 'tiff', 'tif', 'pdf'];
+    const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
+    if (!allowedExtensions.includes(fileExtension)) {
+      setValidationMessage('Invalid file type. Allowed types: JPG, JPE, JPEG, GIF, PNG, TIFF, TIF, PDF.');
+      setShowValidationErrors(true);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    // English only check
+    const englishOnly = /^[A-Za-z0-9\s._-]+$/.test(file.name);
+    if (!englishOnly) {
+      setValidationMessage('File name must be in English characters only.');
+      setShowValidationErrors(true);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    setShowValidationErrors(false);
+    updateSection('invoice', { uploadedDocs: [file] });
+  };
 
   // Validation rules from appConfig
   const packageQuantityMin = appConfig.validationRules.package.quantity.min;
@@ -418,10 +467,32 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
   const lineItemWeightMin = appConfig.validationRules.lineItem.weight.min;
   const lineItemValueMin = appConfig.validationRules.lineItem.value.min;
 
+  // Compute initial pickup times based on current time
+  const getInitialPickupTimes = () => {
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const roundedUp = Math.ceil(currentMinutes / 30) * 30;
+    // Clamp between 6:00 AM (360) and 6:00 PM (1080)
+    const readyMin = Math.max(360, Math.min(roundedUp, 1080 - 90));
+    const closeMin = Math.min(readyMin + 90, 1080);
+    const toStr = (m: number) => `${Math.floor(m / 60).toString().padStart(2, '0')}:${(m % 60).toString().padStart(2, '0')}`;
+    return { readyTime: toStr(readyMin), closeTime: toStr(closeMin) };
+  };
+
   // Form State
   const [formData, setFormData] = useState({
     // Step 1: Addresses
-    shipper: { name: '', company: '', address1: '', address2: '', address3: '', city: '', postalCode: '', phone: '', email: '', country: 'TH', vat: '' },
+    shipper: (() => {
+      const saved = localStorage.getItem('shipperData');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {
+          console.error("Error parsing saved shipper data:", e);
+        }
+      }
+      return { name: '', company: '', address1: '', address2: '', address3: '', city: '', postalCode: '', phone: '', email: '', country: 'TH', vat: '' };
+    })(),
     receiver: { name: '', company: '', address1: '', address2: '', address3: '', city: '', postalCode: '', phone: '', email: '', country: '', vat: '', suburb: '' },
 
     // Step 2: Shipment Method & Details
@@ -464,8 +535,8 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
       required: true,
       location: pickupLocations[0] || 'Reception',
       instructions: '',
-      readyTime: '09:00',
-      closeTime: '17:00',
+      readyTime: getInitialPickupTimes().readyTime,
+      closeTime: getInitialPickupTimes().closeTime,
       address: { name: '', company: '', address1: '', address2: '', address3: '', city: '', postalCode: '', phone: '', country: 'TH' },
       isAddressManuallyEdited: false
     }
@@ -504,26 +575,53 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
   }, []);
 
   useEffect(() => {
-    if (!formData.pickup.isAddressManuallyEdited) {
-       setFormData(prev => ({
-         ...prev,
-         pickup: {
-           ...prev.pickup,
-           address: {
-             name: prev.shipper.name,
-             company: prev.shipper.company,
-             address1: prev.shipper.address1,
-             address2: prev.shipper.address2,
-             address3: prev.shipper.address3,
-             city: prev.shipper.city,
-             postalCode: prev.shipper.postalCode,
-             phone: prev.shipper.phone,
-             country: prev.shipper.country
-           }
+     setFormData(prev => ({
+       ...prev,
+       pickup: {
+         ...prev.pickup,
+         address: {
+           name: prev.shipper.name,
+           company: prev.shipper.company,
+           address1: prev.shipper.address1,
+           address2: prev.shipper.address2,
+           address3: prev.shipper.address3,
+           city: prev.shipper.city,
+           postalCode: prev.shipper.postalCode,
+           phone: prev.shipper.phone,
+           country: prev.shipper.country
          }
-       }));
-    }
+       }
+     }));
   }, [formData.shipper]);
+
+  useEffect(() => {
+    localStorage.setItem('shipperData', JSON.stringify(formData.shipper));
+  }, [formData.shipper]);
+
+  // Sync pickup timing when date changes
+  useEffect(() => {
+    const minStart = getMinReadyTime();
+    const currentStart = toMinutes(formData.pickup.readyTime);
+    const today = new Date().toISOString().split('T')[0];
+
+    // User wants "immersive": when first time select date in another day (future), 
+    // it should snap to the earliest possible slot (9:30 AM).
+    if (formData.shipDate !== today) {
+       // Future date selected: snap to 09:30 (absoluteMin is 570)
+       updateSection('pickup', {
+         readyTime: toTimeString(570),
+         closeTime: toTimeString(750) // 12:30 (margin of 180 mins)
+       });
+    } else {
+       // Change back to today: if current start is invalid, snap to minStart
+       if (currentStart < minStart) {
+         updateSection('pickup', {
+            readyTime: toTimeString(minStart),
+            closeTime: toTimeString(Math.min(1080, minStart + 180)) // ensure 3h window if possible
+         });
+       }
+    }
+  }, [formData.shipDate]);
 
   const steps = [
     { id: 1, name: 'addressStep', icon: MapPin },
@@ -538,12 +636,24 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
   const [isEditingPickupAddress, setIsEditingPickupAddress] = useState(false);
   const [tempPickupAddress, setTempPickupAddress] = useState(formData.pickup.address);
 
-  const formatTime = (mins: number) => {
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const displayH = h % 12 || 12;
-    return `${displayH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')} ${ampm}`;
+  const formatTime = (minutes: number) => {
+    const h = Math.floor(minutes / 60);
+    const m = Math.round(minutes % 60);
+    const displayHours = (h % 12) || 12;
+    const ampm = h < 12 || h === 24 ? 'am' : 'pm';
+    return `${displayHours}:${String(m).padStart(2, '0')} ${ampm}`;
+  };
+
+  const getMinReadyTime = () => {
+    const today = new Date().toISOString().split('T')[0];
+    const absoluteMin = 570; // 09:30 AM
+    if (formData.shipDate === today) {
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      const rounded = Math.ceil(currentMinutes / 30) * 30;
+      return Math.max(absoluteMin, rounded); 
+    }
+    return absoluteMin; 
   };
 
   const toMinutes = (time: string) => {
@@ -552,7 +662,31 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
     return h * 60 + m;
   };
 
+  const toTimeString = (minutes: number) => {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+  };
+
   const handleNext = () => {
+    if (currentStep === 6) {
+      if (isEditingPickupAddress) {
+        setShowValidationErrors(true);
+        setValidationMessage(t('savePickupAddressError' as any) || "Please \"Save\" the pickup address before proceeding");
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+
+      const minStart = getMinReadyTime();
+      const currentStart = toMinutes(formData.pickup.readyTime);
+      if (currentStart < minStart) {
+        setShowValidationErrors(true);
+        setValidationMessage(`Pickup Ready Time is invalid - the earliest available time for ${formData.shipDate} is ${formatTime(minStart)}`);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+    }
+
     if (currentStep === 5) {
       const { invoice } = formData;
       const errors: string[] = [];
@@ -711,6 +845,12 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
       }
       window.scrollTo(0, 0);
     } else {
+      if (!printSize) {
+        setShowValidationErrors(true);
+        setValidationMessage(t('selectPrintSizeError' as any) || "Please select a print size before creating the shipment");
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
       handleFinalSubmit();
     }
   };
@@ -731,28 +871,42 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
   const handleFinalSubmit = async () => {
     setIsSubmitting(true);
 
-    // Original Logic Implementation: Validate and build exact payload. 
     try {
-      const payload = buildShipmentPayload(formData, true);
-      console.log("DEBUG: Final Payload:", JSON.stringify(payload, null, 2));
+      // 1. Build the real payload including the printSize
+      const payload = buildShipmentPayload({ ...formData, printSize }, false); 
+      
+      console.log("DEBUG: Final Payload for API:", JSON.stringify(payload, null, 2));
 
-      // Mocking API call response based on the new rigorous payload
-      setTimeout(() => {
-        const mockResponse = {
-          shipmentTrackingNumber: 'WAYBILL' + Math.floor(Math.random() * 1000000000),
-          dispatchConfirmationNumber: 'PRG' + Math.floor(Math.random() * 1000000),
-          warnings: ['Successfully tested local data and advanced API payload mapping!'],
-          documents: [
-            { typeCode: 'waybilldoc', content: 'JVBERi0xLjQKJ...' },
-            { typeCode: 'invoice', content: 'JVBERi0xLjQKJ...' }
-          ],
-          payloadReconstructed: payload
-        };
+      // 2. Call the Vercel API Proxy
+      const response = await fetch('/api/ship', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Success: result expected to have waybill, documents, etc.
         setIsSubmitting(false);
-        onFinish(mockResponse);
-      }, 1200);
-    } catch (e) {
-      console.error("Error building payload:", e);
+        onFinish(data);
+      } else {
+        // API Error logic
+        const errorMsg = data.detail || data.message || "An error occurred with the DHL API";
+        const additionalErrors = data.additionalMessages?.map((m: any) => m.description).join(' • ') || "";
+        
+        setShowValidationErrors(true);
+        setValidationMessage(`${errorMsg}${additionalErrors ? ` (${additionalErrors})` : ''}`);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setIsSubmitting(false);
+      }
+    } catch (e: any) {
+      console.error("Submission Error:", e);
+      setShowValidationErrors(true);
+      setValidationMessage(e.message || "Network error while connecting to the proxy.");
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       setIsSubmitting(false);
     }
   };
@@ -1341,7 +1495,16 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
 
                     {(formData.invoice.creationMode === 'own' || formData.invoice.optionalUpload) && (
                       <div className="space-y-4">
-                        <div className="card bg-gray-50 dark:bg-gray-900/40 border-dashed border-2 border-gray-200 dark:border-gray-800 p-10 text-center space-y-4 group hover:border-dhl-yellow transition-all">
+                        <div 
+                          className={`card bg-gray-50 dark:bg-gray-900/40 border-dashed border-2 p-10 text-center space-y-4 group transition-all ${isDragging ? 'border-dhl-red bg-red-50/50' : 'border-gray-200 dark:border-gray-800 hover:border-dhl-yellow'}`}
+                          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                          onDragLeave={() => setIsDragging(false)}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            setIsDragging(false);
+                            handleFileAction(Array.from(e.dataTransfer.files));
+                          }}
+                        >
                           <div className="w-16 h-16 bg-white dark:bg-gray-800 rounded-2xl shadow-sm flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
                             <Upload className="w-8 h-8 text-dhl-red" />
                           </div>
@@ -1353,25 +1516,19 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
                               {t('browseForFile' as any) || 'Browse for file'} {t('orDropHere' as any) || 'or drop here'}
                             </p>
                           </div>
-                          <input type="file" multiple className="hidden" id="file-upload" onChange={(e) => {
-                            const files = Array.from(e.target.files || []);
-                            // English only check from legacy logic
-                            const englishOnly = files.every(f => /^[A-Za-z0-9\s._-]+$/.test(f.name));
-                            if (!englishOnly) {
-                              setValidationMessage('File name must be in English characters only.');
-                              setShowValidationErrors(true);
-                              window.scrollTo({ top: 0, behavior: 'smooth' });
-                              return;
-                            }
-                            updateSection('invoice', { uploadedDocs: [...formData.invoice.uploadedDocs, ...files] });
-                          }} />
+                          <input 
+                            type="file" 
+                            className="hidden" 
+                            id="file-upload" 
+                            onChange={(e) => handleFileAction(Array.from(e.target.files || []))} 
+                          />
                           <label htmlFor="file-upload" className="btn-secondary inline-block py-3 px-8 cursor-pointer shadow-sm hover:shadow-md transition-all">
-                            Choose Files
+                            Choose File
                           </label>
 
                           <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest space-y-1">
-                            <p>{t('fileTypesAllowed' as any) || 'Allowed: PDF, JPG, PNG, TIFF'}</p>
-                            <p>{t('maxFileSize' as any) || 'Max total size: 10MB'}</p>
+                            <p>{t('fileTypesAllowed' as any) || 'Allowed: JPG, JPE, JPEG, GIF, PNG, TIFF, TIF, PDF'}</p>
+                            <p>{t('maxFileSize' as any) || 'Max file size: 5MB'}</p>
                             <p>{t('fileNameEnglishOnly' as any) || 'Filename must be English only'}</p>
                           </div>
 
@@ -1464,75 +1621,26 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
                       type="date" 
                       value={formData.shipDate} 
                       min={new Date().toISOString().split('T')[0]}
-                      onChange={v => updateSection('pickup', { date: v })} 
+                      onChange={v => setFormData({ ...formData, shipDate: v })} 
                     />
                   </div>
 
-                  {/* 2. Window Slider */}
-                  <div className="space-y-12">
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Pickup Window (Ready/Close)</label>
-                      <div className="relative h-20 flex items-center px-4 bg-gray-50/50 dark:bg-gray-900/30 rounded-3xl border border-gray-100 dark:border-gray-800">
-                        <div className="absolute left-6 right-6 h-1.5 bg-gray-200 dark:bg-gray-800 rounded-full" />
-                        <div 
-                          className="absolute h-1.5 bg-dhl-yellow rounded-full transition-all" 
-                          style={{ 
-                            left: `calc(24px + ${((toMinutes(formData.pickup.readyTime) - 360) / (1080 - 360)) * (100 - (48 / 100)) }%)`, 
-                            right: `calc(24px + ${100 - ((toMinutes(formData.pickup.closeTime) - 360) / (1080 - 360)) * (100 - (48 / 100)) }%)` 
-                          }}
-                        />
-                        
-                        {/* Thumb Labels */}
-                        <div 
-                          className="absolute -top-6 transition-all" 
-                          style={{ left: `calc(24px + ${((toMinutes(formData.pickup.readyTime) - 360) / (1080 - 360)) * (100 - (48 / 100)) }%)`, transform: 'translateX(-50%)' }}
-                        >
-                          <span className="bg-dhl-red text-white text-[10px] font-black py-1 px-2 rounded-lg shadow-lg whitespace-nowrap">
-                            {formatTime(toMinutes(formData.pickup.readyTime))}
-                          </span>
-                        </div>
-                        <div 
-                          className="absolute -top-6 transition-all" 
-                          style={{ left: `calc(24px + ${((toMinutes(formData.pickup.closeTime) - 360) / (1080 - 360)) * (100 - (48 / 100)) }%)`, transform: 'translateX(-50%)' }}
-                        >
-                          <span className="bg-dhl-red text-white text-[10px] font-black py-1 px-2 rounded-lg shadow-lg whitespace-nowrap">
-                            {formatTime(toMinutes(formData.pickup.closeTime))}
-                          </span>
-                        </div>
-
-                        <input 
-                          type="range" min={360} max={1080} step={15} 
-                          value={toMinutes(formData.pickup.readyTime)} 
-                          onChange={(e) => {
-                            const val = Math.min(Number(e.target.value), toMinutes(formData.pickup.closeTime) - 120);
-                            const h = Math.floor(val / 60);
-                            const m = val % 60;
-                            updateSection('pickup', { readyTime: `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}` });
-                          }}
-                          className="absolute left-6 right-6 appearance-none bg-transparent pointer-events-none z-30 h-1.5 slider-thumb-only"
-                        />
-                        <input 
-                          type="range" min={360} max={1080} step={15} 
-                          value={toMinutes(formData.pickup.closeTime)} 
-                          onChange={(e) => {
-                            const val = Math.max(Number(e.target.value), toMinutes(formData.pickup.readyTime) + 120);
-                            const h = Math.floor(val / 60);
-                            const m = val % 60;
-                            updateSection('pickup', { closeTime: `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}` });
-                          }}
-                          className="absolute left-6 right-6 appearance-none bg-transparent pointer-events-none z-30 h-1.5 slider-thumb-only"
-                        />
-
-                        {/* Scale */}
-                        <div className="absolute -bottom-6 left-6 right-6 flex justify-between px-1">
-                          {[360, 480, 600, 720, 840, 960, 1080].map(mins => (
-                            <div key={mins} className="flex flex-col items-center">
-                              <div className="w-[1px] h-2 bg-gray-300 dark:bg-gray-700 mb-1" />
-                              <span className="text-[9px] font-bold text-gray-400 uppercase">{formatTime(mins)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                  </div>
+                  {/* 2. Window Slider — native noUiSlider */}
+                  <PickupWindowSlider
+                    key={formData.shipDate}
+                    readyTime={formData.pickup.readyTime}
+                    closeTime={formData.pickup.closeTime}
+                    shipDate={formData.shipDate}
+                    formatTime={formatTime}
+                    toMinutes={toMinutes}
+                    toTimeString={toTimeString}
+                    getMinReadyTime={getMinReadyTime}
+                    onChange={(ready: string, close: string) => {
+                      updateSection('pickup', { readyTime: ready, closeTime: close });
+                    }}
+                    hintText={t('pickupWindowHint' as any) || "Please allow at least 90 minutes for your Pickup Window"}
+                    label={t('pickupWindow' as any) || "Pickup Window"}
+                  />
 
                   {/* 3. Location */}
                   <div className="md:w-1/2">
@@ -1573,7 +1681,7 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
                         <div className="flex gap-4">
                           <button 
                             onClick={() => {
-                              updateSection('pickup', { address: tempPickupAddress, isAddressManuallyEdited: true });
+                              updateSection('pickup', { address: tempPickupAddress });
                               setIsEditingPickupAddress(false);
                             }}
                             className="text-xs font-black text-green-600 uppercase hover:text-green-700 font-bold"
@@ -1637,73 +1745,169 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
         {/* STEP 7: SUMMARY */}
         {currentStep === 7 && (
           <div className="space-y-8 animate-in slide-in-from-bottom-4">
-            <div className="card space-y-10 relative overflow-hidden">
-              <div className="absolute top-0 left-0 w-full h-2 bg-dhl-red" />
-
-              <div className="flex items-center gap-3 text-dhl-red border-b border-gray-100 pb-4">
-                <CheckCircle2 className="w-6 h-6" />
-                <h3 className="text-xl font-bold uppercase tracking-tight">{t('summary')}</h3>
+            <div className="card space-y-6 relative overflow-hidden">
+              <div className="flex justify-between items-center border-b border-gray-100 dark:border-gray-800 pb-4">
+                <h3 className="text-xl font-bold uppercase tracking-tight flex items-center gap-2">
+                   <ClipboardList className="w-6 h-6 text-dhl-red" /> {t('summary')}
+                </h3>
+                <button 
+                  type="button" 
+                  onClick={() => setCurrentStep(1)}
+                  className="text-xs font-black text-dhl-red uppercase hover:underline italic"
+                >
+                  {t('editShipment' as any) || 'Edit'}
+                </button>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-                <div className="space-y-8">
-                  <SummarySection title={t('shipperInfo' as any)} icon={User}>
-                    <p className="font-black italic text-dhl-red text-lg uppercase tracking-tight">{formData.shipper.company || formData.shipper.name}</p>
-                    <p className="text-xs text-gray-500 font-medium leading-relaxed">{formData.shipper.address1}<br />{formData.shipper.city}, {formData.shipper.country}</p>
-                  </SummarySection>
-
-                  <SummarySection title={t('receiverInfo' as any)} icon={MapPin}>
-                    <p className="font-black italic text-dhl-red text-lg uppercase tracking-tight">{formData.receiver.company || formData.receiver.name}</p>
-                    <p className="text-xs text-gray-500 font-medium leading-relaxed">{formData.receiver.address1}<br />{formData.receiver.city}, {formData.receiver.country}</p>
-                  </SummarySection>
-                </div>
-
-                <div className="space-y-8">
-                  <SummarySection title="Shipment Details" icon={Package}>
-                    <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-2xl space-y-4">
-                      <SummaryField label="Method" value={formData.shipMethod.toUpperCase()} />
-                      <SummaryField label="Date" value={formData.shipDate} />
-                      <SummaryField label="Total Pieces" value={formData.packages.reduce((s, p) => s + p.quantity, 0)} />
-                      <SummaryField label="Total Weight" value={`${totalPackageWeight.toFixed(2)} KG`} />
+              <div className="space-y-6 text-sm">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Shipper Summary */}
+                  <div className="p-4 border-2 border-gray-100 dark:border-gray-800 rounded-2xl bg-gray-50/50 dark:bg-gray-900/50">
+                    <h4 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-3" data-i18n="summaryShipper">{t('summaryShipper' as any) || t('shipperInfo' as any)}</h4>
+                    <div className="space-y-1 font-bold text-gray-700 dark:text-gray-300">
+                      <p className="break-words font-black text-gray-900 dark:text-white text-base">
+                        {formData.shipper.name}, {formData.shipper.company}
+                      </p>
+                      <p className="break-words">
+                        {[formData.shipper.address1, formData.shipper.address2, formData.shipper.address3].filter(Boolean).join(', ')}
+                      </p>
+                      <p className="break-words">
+                        {formData.shipper.city}, {formData.shipper.postalCode}, {countries.find(c => c.countryCode === formData.shipper.country)?.countryName || formData.shipper.country}
+                      </p>
+                      <p className="break-words mt-2 text-dhl-red italic">
+                        <strong>Tel:</strong> {formData.shipper.phone}
+                      </p>
                     </div>
-                  </SummarySection>
+                  </div>
 
-                  <SummarySection title="Payment" icon={CreditCard}>
-                    <SummaryField label="Billing Account" value={formData.payment.billingAccount} />
-                    <SummaryField label="Incoterm" value={formData.payment.incoterm} />
-                  </SummarySection>
+                  {/* Receiver Summary */}
+                  <div className="p-4 border-2 border-gray-100 dark:border-gray-800 rounded-2xl bg-gray-50/50 dark:bg-gray-900/50">
+                    <h4 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-3" data-i18n="summaryReceiver">{t('summaryReceiver' as any) || t('receiverInfo' as any)}</h4>
+                    <div className="space-y-1 font-bold text-gray-700 dark:text-gray-300">
+                      <p className="break-words font-black text-gray-900 dark:text-white text-base">
+                        {formData.receiver.name}, {formData.receiver.company}
+                      </p>
+                      <p className="break-words">
+                        {[formData.receiver.address1, formData.receiver.suburb, formData.receiver.address2, formData.receiver.address3].filter(Boolean).join(', ')}
+                      </p>
+                      <p className="break-words">
+                        {formData.receiver.city}, {formData.receiver.postalCode}, {countries.find(c => c.countryCode === formData.receiver.country)?.countryName || formData.receiver.country}
+                      </p>
+                      <p className="break-words mt-2 text-dhl-red italic">
+                        <strong>Tel:</strong> {formData.receiver.phone}
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="space-y-8">
-                  <SummarySection title="Customs & Docs" icon={FileText}>
+                {/* Shipment Details */}
+                <div className="p-4 border-2 border-gray-100 dark:border-gray-800 rounded-2xl bg-gray-50/50 dark:bg-gray-900/50">
+                  <h4 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-3" data-i18n="summaryShipmentInfo">{t('summaryShipmentInfo' as any) || "Shipment Details"}</h4>
+                  <div className="space-y-2 font-bold text-gray-700 dark:text-gray-300">
+                    <p className="break-words"><strong>{t('shipmentDate' as any)}:</strong> {new Date(formData.shipDate).toLocaleDateString(language === 'th' ? 'th-TH' : 'en-GB', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                    <p className="break-words"><strong>Type:</strong> {formData.shipMethod === 'document' ? t('document' as any) : t('package' as any)}</p>
+                    <p className="break-words"><strong>Reference:</strong> {formData.shipmentReference || 'N/A'}</p>
+                    
                     {formData.shipMethod === 'document' ? (
-                      <p className="text-sm font-bold text-gray-400 italic">No customs documents required for Documents.</p>
+                      <p className="break-words"><strong>Description:</strong> {formData.documentDescription || 'Documents'}</p>
                     ) : (
-                      <div className="space-y-2">
-                        <SummaryField label="Invoice Value" value={`${totalInvoiceValue.toLocaleString()} THB`} />
-                        <p className="text-[10px] text-gray-400 uppercase font-bold mt-4">Invoice Items</p>
-                        <ul className="text-xs font-bold space-y-1">
-                          {formData.invoice.items.map((it, idx) => (
-                            <li key={idx} className="flex justify-between border-b border-gray-100 py-1">
-                              <span>{it.description || 'Item'} x {it.quantity}</span>
-                              <span className="text-dhl-red italic">{it.value * it.quantity} THB</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
+                      <>
+                        <p className="break-words"><strong>Insurance:</strong> {formData.insurance?.required ? `${formData.insurance.value} THB` : 'No'}</p>
+                        <div className="mt-4 space-y-4">
+                           {formData.invoice.items.map((it, idx) => (
+                             <div key={idx} className="border-t border-gray-200 dark:border-gray-700 pt-3">
+                                <p className="font-black text-xs text-gray-400 uppercase tracking-tighter mb-1">Item #{idx + 1}</p>
+                                <p className="break-words text-gray-900 dark:text-white font-black italic uppercase">
+                                  {it.description || 'Item'}
+                                </p>
+                                <div className="flex gap-4 mt-1 text-xs text-gray-500">
+                                   <span>Qty: {it.quantity}</span>
+                                   <span>Weight: {it.weight.toFixed(3)} KG</span>
+                                   <span className="text-dhl-red">Value: {it.value.toLocaleString()} THB</span>
+                                </div>
+                             </div>
+                           ))}
+                        </div>
+                      </>
                     )}
-                  </SummarySection>
-
-                  <SummarySection title="Pickup" icon={Truck}>
-                    <p className="text-sm font-bold">{formData.pickup.required ? `Scheduled at ${formData.pickup.readyTime} - ${formData.pickup.closeTime}` : 'Drop-off required'}</p>
-                    {formData.pickup.required && <p className="text-xs text-gray-500">{formData.pickup.location}</p>}
-                  </SummarySection>
+                  </div>
                 </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Package Info */}
+                  <div className="p-4 border-2 border-gray-100 dark:border-gray-800 rounded-2xl bg-gray-50/50 dark:bg-gray-900/50">
+                    <h4 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-3" data-i18n="summaryPackageInfo">{t('summaryPackageInfo' as any) || "Package Information"}</h4>
+                    <div className="space-y-1 font-bold text-gray-700 dark:text-gray-300">
+                      <p className="break-words"><strong>{t('totalPackages' as any)}:</strong> {formData.packages.reduce((s, p) => s + p.quantity, 0)}</p>
+                      <p className="break-words"><strong>{t('totalWeightKg' as any)}:</strong> {totalPackageWeight.toFixed(3)} KG</p>
+                    </div>
+                  </div>
+
+                  {/* Payment Info */}
+                  <div className="p-4 border-2 border-gray-100 dark:border-gray-800 rounded-2xl bg-gray-50/50 dark:bg-gray-900/50">
+                    <h4 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-3" data-i18n="summaryPaymentInfo">{t('summaryPaymentInfo' as any) || "Payment Information"}</h4>
+                    <div className="space-y-1 font-bold text-gray-700 dark:text-gray-300">
+                      <p className="break-words"><strong>{t('shipperAccount' as any)}:</strong> {formData.payment.shipperAccount}</p>
+                      <p className="break-words"><strong>{t('billingAccount' as any)}:</strong> {formData.payment.useShipperForBilling ? formData.payment.shipperAccount : (formData.payment.billingAccount || 'N/A')}</p>
+                      {formData.shipMethod === 'package' && (
+                        <>
+                          <p className="break-words"><strong>{t('dutiesAccount' as any)}:</strong> {formData.payment.dutiesRole === 'receiver' ? t('receiverWillPay' as any) : (formData.payment.dutiesAccount || 'N/A')}</p>
+                          <p className="break-words"><strong>{t('incoterm' as any)}:</strong> {formData.payment.incoterm}</p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pickup Info */}
+                {formData.pickup.required && (
+                  <div className="p-4 border-2 border-gray-100 dark:border-gray-800 rounded-2xl bg-gray-50/50 dark:bg-gray-900/50">
+                    <h4 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-3" data-i18n="summaryPickupInfo">{t('summaryPickupInfo' as any) || "Pickup Information"}</h4>
+                    <div className="space-y-1 font-bold text-gray-700 dark:text-gray-300">
+                      <p className="break-words"><strong>{t('requestPickup' as any)}:</strong> {t('yes' as any)}</p>
+                      <p className="break-words"><strong>{t('summaryPickupDate' as any)}:</strong> {new Date(formData.shipDate).toLocaleDateString(language === 'th' ? 'th-TH' : 'en-GB', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                      <p className="break-words"><strong>{t('summaryPickupTime' as any)}:</strong> {formatTime(toMinutes(formData.pickup.readyTime))} - {formatTime(toMinutes(formData.pickup.closeTime))}</p>
+                      <p className="break-words"><strong>{t('pickupLocationQuestion' as any)}:</strong> {formData.pickup.location}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Print Size Selection - Exact Parity with ship.html print-options-container */}
+              <div className="p-6 border-2 border-dhl-yellow/30 rounded-3xl bg-dhl-yellow/10 dark:bg-gray-800/10 space-y-6 shadow-inner">
+                <h3 className="text-xl font-black text-gray-900 dark:text-white uppercase tracking-tighter flex items-center gap-2" data-i18n="selectPrintSize">
+                   <Printer className="w-6 h-6 text-dhl-red" /> {t('selectPrintSize' as any) || "กรุณาเลือกขนาดในการปริ้น"}
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <button 
+                      type="button" 
+                      onClick={() => setPrintSize('A4')}
+                      className={`p-5 rounded-2xl flex flex-col items-center justify-center text-center transition-all border-2 border-dashed ${printSize === 'A4' ? 'bg-white border-dhl-red shadow-xl shadow-red-500/10 scale-[1.02]' : 'bg-white/50 border-gray-200 dark:bg-gray-800/50 dark:border-gray-700 hover:border-gray-300'}`}
+                    >
+                        <div className="w-10 h-14 border-2 border-gray-300 rounded shadow-sm flex items-center justify-center bg-gray-50 mb-3">
+                           <span className="text-gray-400 font-bold text-[8px]">A4</span>
+                        </div>
+                        <span className="font-black tracking-tight uppercase text-sm" data-i18n="printA4">{t('printA4' as any) || "ขนาด A4"}</span>
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => setPrintSize('Label')}
+                      className={`p-5 rounded-2xl flex flex-col items-center justify-center text-center transition-all border-2 border-dashed ${printSize === 'Label' ? 'bg-white border-dhl-red shadow-xl shadow-red-500/10 scale-[1.02]' : 'bg-white/50 border-gray-200 dark:bg-gray-800/50 dark:border-gray-700 hover:border-gray-300'}`}
+                    >
+                        <div className="w-10 h-16 border-2 border-gray-300 rounded shadow-sm flex items-center justify-center bg-gray-50 mb-3">
+                          <span className="text-gray-400 font-bold text-[8px]">8x4"</span>
+                        </div>
+                        <span className="font-black tracking-tight uppercase text-sm" data-i18n="printLabel">{t('printLabel' as any) || "ขนาด Label 8x4 Inch"}</span>
+                    </button>
+                </div>
+                {showValidationErrors && !printSize && (
+                  <p className="text-center text-xs font-black text-dhl-red italic animate-bounce uppercase tracking-widest">{t('selectPrintSizeError' as any) || "Please select a print size before creating the shipment"}</p>
+                )}
               </div>
 
               <div className="bg-red-50 dark:bg-red-950/20 p-8 rounded-3xl border-2 border-red-100 dark:border-red-900/30 flex flex-col md:flex-row items-center gap-6">
-                <div className="p-4 bg-dhl-red rounded-2xl text-white shadow-xl shadow-red-500/20 animate-pulse">
-                  <AlertCircle className="w-10 h-10" />
+                <div className="p-4 bg-dhl-red rounded-2xl text-white shadow-xl shadow-red-500/20 animate-pulse text-center">
+                  <AlertCircle className="w-10 h-10 mx-auto" />
                 </div>
                 <div className="text-center md:text-left">
                   <h4 className="text-xl font-black text-dhl-red uppercase italic tracking-tighter">Final Verification</h4>
@@ -1728,7 +1932,7 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
           {t('previous')}
         </button>
         <button
-          disabled={isSubmitting}
+          disabled={isSubmitting || (currentStep === 6 && isEditingPickupAddress)}
           onClick={handleNext}
           className={`flex-[2] utility-button flex items-center justify-center gap-2 font-black uppercase tracking-widest text-sm py-5 shadow-xl transition-all active:scale-95 disabled:opacity-50 rounded-2xl ${currentStep === 7 ? 'bg-green-600 text-white shadow-green-500/20 hover:bg-green-700' : 'bg-dhl-red text-white shadow-red-500/20 hover:bg-dhl-dark-red'}`}
         >

@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
-import { Menu, X, Sun, Moon, Globe, Home } from 'lucide-react';
+import { Menu, X, Sun, Moon, Globe, Trash2 } from 'lucide-react';
 
 interface HeaderProps {
   onNavigateHome: () => void;
+  onClearShipper?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onNavigateHome }) => {
+export const Header: React.FC<HeaderProps> = ({ onNavigateHome, onClearShipper }) => {
   const { language, setLanguage, t } = useLanguage();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
@@ -46,11 +47,11 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateHome }) => {
       {/* Desktop Nav */}
       <nav className="hidden sm:flex items-center space-x-4">
         <button
-          onClick={onNavigateHome}
+          onClick={onClearShipper || onNavigateHome}
           className="utility-button bg-white/50 px-3 flex items-center gap-2 font-bold text-dhl-red"
         >
-          <Home className="w-4 h-4" />
-          {t('homepage')}
+          <Trash2 className="w-4 h-4" />
+          {t('clearHistory')}
         </button>
         <div className="relative">
           <button
@@ -95,9 +96,9 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateHome }) => {
               </button>
             </div>
 
-            <button onClick={() => { onNavigateHome(); setIsMenuOpen(false); }} className="w-full p-4 rounded-xl text-left border flex items-center gap-3 bg-dhl-yellow/10 border-dhl-yellow font-bold">
-              <Home className="w-5 h-5" />
-              {t('homepage')}
+            <button onClick={() => { (onClearShipper || onNavigateHome)(); setIsMenuOpen(false); }} className="w-full p-4 rounded-xl text-left border flex items-center gap-3 bg-dhl-yellow/10 border-dhl-yellow font-bold">
+              <Trash2 className="w-5 h-5" />
+              {t('clearHistory')}
             </button>
 
             <div className="space-y-2">
