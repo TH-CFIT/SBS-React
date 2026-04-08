@@ -30,7 +30,12 @@ const PickupWindowSlider: React.FC<PickupWindowSliderProps> = ({
   const sliderRef = useRef<HTMLDivElement>(null);
   const sliderInstance = useRef<API | null>(null);
   const onChangeRef = useRef(onChange);
+  const getMinReadyTimeRef = useRef(getMinReadyTime);
+  const toTimeStringRef = useRef(toTimeString);
+
   onChangeRef.current = onChange;
+  getMinReadyTimeRef.current = getMinReadyTime;
+  toTimeStringRef.current = toTimeString;
 
   const initSlider = useCallback(() => {
     if (!sliderRef.current) return;
@@ -79,16 +84,24 @@ const PickupWindowSlider: React.FC<PickupWindowSliderProps> = ({
     slider.on('change', (values: (string | number)[]) => {
       const ready = parseFloat(String(values[0]));
       const close = parseFloat(String(values[1]));
-      onChangeRef.current(toTimeString(ready), toTimeString(close));
+      onChangeRef.current(toTimeStringRef.current(ready), toTimeStringRef.current(close));
     });
 
     // onUpdate — enforce minimum ready time
     slider.on('update', (values: (string | number)[], handle: number) => {
-      const minReady = getMinReadyTime();
       if (handle === 0) {
+        const minReadyRaw = getMinReadyTimeRef.current();
+        // Snap minReady to the nearest 15-min increment upwards to prevent infinite loops with the slider step
+        const snappedMinReady = Math.ceil(minReadyRaw / 15) * 15;
+        
+        // Safety: If it's too late in the day, don't push past 1.5h before dead-end
+        const safeMinReady = Math.min(snappedMinReady, 1080 - 90);
+
         const currentVal = parseFloat(String(values[0]));
-        if (currentVal < minReady) {
-          slider.set([minReady, null]);
+        
+        // Only call set if the value is actually below the limit to avoid feedback loops
+        if (currentVal < safeMinReady) {
+          slider.set([safeMinReady, null]);
         }
       }
     });
@@ -105,6 +118,21 @@ const PickupWindowSlider: React.FC<PickupWindowSliderProps> = ({
       }
     };
   }, [initSlider]);
+
+  // Sync external prop changes back to slider (e.g. if Step 2 logic forces a change)
+  useEffect(() => {
+    if (sliderInstance.current) {
+      const currentValues = sliderInstance.current.get() as string[];
+      const propReady = toMinutes(readyTime);
+      const propClose = toMinutes(closeTime);
+      const sliderReady = parseFloat(currentValues[0]);
+      const sliderClose = parseFloat(currentValues[1]);
+
+      if (Math.abs(propReady - sliderReady) > 1 || Math.abs(propClose - sliderClose) > 1) {
+        sliderInstance.current.set([propReady, propClose]);
+      }
+    }
+  }, [readyTime, closeTime, toMinutes]);
 
   return (
     <div style={{ position: 'relative', padding: '24px 0 64px 0' }}>

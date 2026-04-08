@@ -725,8 +725,8 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
     const roundedUp = Math.ceil(currentMinutes / 30) * 30;
-    // Clamp between 6:00 AM (360) and 6:00 PM (1080)
-    const readyMin = Math.max(360, Math.min(roundedUp, 1080 - 90));
+    // Clamp between 6:00 AM (360) and 4:30 PM (990) to allow 90m window before 6:00 PM (1080)
+    const readyMin = Math.max(360, Math.min(roundedUp, 990));
     const closeMin = Math.min(readyMin + 90, 1080);
     const toStr = (m: number) => `${Math.floor(m / 60).toString().padStart(2, '0')}:${(m % 60).toString().padStart(2, '0')}`;
     return { readyTime: toStr(readyMin), closeTime: toStr(closeMin) };
@@ -909,7 +909,7 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
       const now = new Date();
       const currentMinutes = now.getHours() * 60 + now.getMinutes();
       const rounded = Math.ceil(currentMinutes / 30) * 30;
-      return Math.max(absoluteMin, rounded);
+      return Math.max(absoluteMin, Math.min(rounded, 990)); // Cap at 16:30 to allow 90m window
     }
     return absoluteMin;
   };
