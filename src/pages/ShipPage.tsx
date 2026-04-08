@@ -20,6 +20,14 @@ import "nouislider/dist/nouislider.css";
 
 
 // --- Utils ---
+const debounce = (func: Function, delay: number) => {
+  let timeout: any;
+  return function(...args: any[]) {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), delay);
+  };
+};
+
 const transformCountryData = (apiResponse: any) => {
   if (!apiResponse || !apiResponse.referenceData || !apiResponse.referenceData[0] || !apiResponse.referenceData[0].data) {
     console.error("Invalid country data structure from API");
@@ -181,12 +189,25 @@ const Combobox = ({
 const AddressCard = ({ title, data, onChange, countries, bgClass = '', readOnlyCountry = false, showError = false, requiredEmail = true }: { title: string, data: any, onChange: (d: any) => void, countries: any[], bgClass?: string, readOnlyCountry?: boolean, showError?: boolean, requiredEmail?: boolean }) => {
   const { t } = useLanguage();
   const [validationWarning, setValidationWarning] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
 
   const selectedCountry = countries.find((c: any) => c.countryCode === data.country);
   const mode = selectedCountry?.postalLocationTypeCode || 'CP';
 
   const showPostal = mode === 'CP';
   const showSuburb = mode === 'S' && 'suburb' in data;
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const validateAddress = async () => {
     if (!data.country) return;
@@ -216,8 +237,71 @@ const AddressCard = ({ title, data, onChange, countries, bgClass = '', readOnlyC
     }
   };
 
+  const fetchSuggestions = useRef(
+    debounce(async (value: string, type: string, country: string) => {
+      if (!country || value.length < 2) {
+        setShowSuggestions(false);
+        return;
+      }
+
+      const params = new URLSearchParams({ countryCode: country });
+      if (type === 'postalCode') {
+        params.append('postalCode', value);
+      } else if (type === 'city') {
+        if (value.length < 3) {
+          setShowSuggestions(false);
+          return;
+        }
+        params.append('city', value);
+      } else if (type === 'suburb') {
+        if (value.length < 3) {
+          setShowSuggestions(false);
+          return;
+        }
+        params.append('countyName', value);
+      }
+
+      try {
+        const response = await fetch(`/api/validate-address?${params.toString()}`);
+        if (!response.ok) {
+          setShowSuggestions(false);
+          return;
+        }
+        const result = await response.json();
+        const locations = result?.postalLocationList;
+
+        if (!locations || locations.length === 0) {
+          setShowSuggestions(false);
+          return;
+        }
+
+        setSuggestions(locations);
+        setShowSuggestions(true);
+      } catch (error) {
+        console.error('Error fetching address suggestions:', error);
+        setShowSuggestions(false);
+      }
+    }, 500)
+  ).current;
+
+  const handleSuggestionSelect = (loc: any) => {
+    const postalCode = loc.postalCode || '';
+    const city = loc.cityName || loc.city || '';
+    const suburb = loc.cityDistrict || loc.countyName || '';
+
+    onChange({
+      ...data,
+      postalCode: postalCode || data.postalCode,
+      city: city || data.city,
+      suburb: suburb || data.suburb
+    });
+    
+    setShowSuggestions(false);
+    setValidationWarning(null);
+  };
+
   return (
-    <div className={`card space-y-6 ${bgClass} transition-shadow hover:shadow-2xl`}>
+    <div className={`card space-y-6 ${bgClass} transition-shadow hover:shadow-2xl relative`}>
       <div className="flex items-center gap-3 text-dhl-red border-b border-gray-100 dark:border-gray-800 pb-4">
         <User className="w-6 h-6" />
         <h3 className="text-xl font-bold uppercase tracking-tight">{title}</h3>
@@ -241,7 +325,20 @@ const AddressCard = ({ title, data, onChange, countries, bgClass = '', readOnlyC
           label={t('country' as any)} 
           value={data.country} 
           options={countries} 
-          onChange={val => { onChange({ ...data, country: val }); setValidationWarning(null); }}
+          onChange={val => { 
+            if (val !== data.country) {
+                onChange({ 
+                    ...data, 
+                    country: val,
+                    postalCode: '',
+                    city: '',
+                    suburb: ''
+                });
+            } else {
+                onChange({ ...data, country: val }); 
+            }
+            setValidationWarning(null); 
+          }}
           showError={showError}
           required
           displayValue={(c) => c.countryName || c.name}
@@ -265,14 +362,44 @@ const AddressCard = ({ title, data, onChange, countries, bgClass = '', readOnlyC
             <Input label={t('address3' as any)} value={data.address3} onChange={(v: any) => onChange({ ...data, address3: v })} ruleKey="address3" showError={showError} />
           </div>
 
-          <div className={`grid grid-cols-1 ${(showPostal || showSuburb) ? 'md:grid-cols-2' : ''} gap-4`}>
-            {showPostal && (
-              <Input label={t('postalCode' as any)} value={data.postalCode} onChange={(v: any) => onChange({ ...data, postalCode: v })} onBlur={validateAddress} required ruleKey="postalcode" showError={showError} />
+          <div className="relative">
+            <div className={`grid grid-cols-1 ${(showPostal || showSuburb) ? 'md:grid-cols-2' : ''} gap-4`}>
+                {showPostal && (
+                <Input label={t('postalCode' as any)} value={data.postalCode} onChange={(v: any) => { onChange({ ...data, postalCode: v }); fetchSuggestions(v, 'postalCode', data.country); }} onBlur={validateAddress} required ruleKey="postalcode" showError={showError} />
+                )}
+                {showSuburb && (
+                <Input label={t('suburb' as any)} value={data.suburb} onChange={(v: any) => { onChange({ ...data, suburb: v }); fetchSuggestions(v, 'suburb', data.country); }} onBlur={validateAddress} required ruleKey="suburb" showError={showError} />
+                )}
+                <Input label={t('city' as any)} value={data.city} onChange={(v: any) => { onChange({ ...data, city: v }); fetchSuggestions(v, 'city', data.country); }} onBlur={validateAddress} required ruleKey="city" showError={showError} />
+            </div>
+
+            {showSuggestions && suggestions.length > 0 && (
+                <div ref={suggestionsRef} className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in duration-200">
+                    <div className="max-h-60 overflow-y-auto custom-scrollbar p-2">
+                        {suggestions.map((loc, i) => {
+                            const pCode = loc.postalCode || '';
+                            const cName = loc.cityName || loc.city || '';
+                            const sName = loc.cityDistrict || loc.countyName || '';
+                            const displayText = [pCode, cName, sName].filter(Boolean).join(' ');
+                            
+                            return (
+                                <div
+                                    key={i}
+                                    onClick={() => handleSuggestionSelect(loc)}
+                                    className="p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-900 cursor-pointer transition-all border-b border-gray-50 dark:border-gray-800 last:border-0"
+                                >
+                                    <p className="font-bold text-sm text-gray-900 dark:text-white">{displayText}</p>
+                                    <div className="flex gap-2 text-[10px] text-gray-400 font-bold uppercase mt-1">
+                                        {pCode && <span>{pCode}</span>}
+                                        {cName && <span>{cName}</span>}
+                                        {sName && <span>{sName}</span>}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
             )}
-            {showSuburb && (
-              <Input label={t('suburb' as any)} value={data.suburb} onChange={(v: any) => onChange({ ...data, suburb: v })} onBlur={validateAddress} required ruleKey="suburb" showError={showError} />
-            )}
-            <Input label={t('city' as any)} value={data.city} onChange={(v: any) => onChange({ ...data, city: v })} onBlur={validateAddress} required ruleKey="city" showError={showError} />
           </div>
 
           <div className="space-y-4">
