@@ -2,7 +2,6 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import fetch from 'node-fetch';
 import { createPool } from '@vercel/postgres';
 
-// Support both standard Vercel Postgres and manual Neon Database integrations
 const db = createPool({
     connectionString: process.env.POSTGRES_URL || process.env.DATABASE_URL
 });
@@ -12,11 +11,11 @@ const ALLOWED_ORIGINS = [
     'https://viruzjoke.github.io',
     'https://thcfit.vercel.app',
     'https://thcfit-admin.vercel.app',
-    'https://sbs-react.vercel.app/'
+    'https://sbs-react.vercel.app',
+    'https://sbs-react-admin.vercel.app'
 ];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-    // Set CORS headers
     const origin = req.headers.origin;
     if (origin && ALLOWED_ORIGINS.includes(origin)) {
         res.setHeader('Access-Control-Allow-Origin', origin);
@@ -40,7 +39,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const dhlPayload = req.body;
 
-    // Extract request data early for logging purposes
     const shipper = dhlPayload?.customerDetails?.shipperDetails;
     const receiver = dhlPayload?.customerDetails?.receiverDetails;
     const accounts = dhlPayload?.accounts || [];
@@ -138,7 +136,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(shipmentResponse.status).json(shipmentData);
         }
 
-        // On success, process and log the data
         try {
             const trackingNumber = shipmentData?.shipmentTrackingNumber || null;
             const bookingRef = shipmentData?.dispatchConfirmationNumber || null;
@@ -173,7 +170,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         res.status(200).json(shipmentData);
 
     } catch (error: any) {
-        // Attempt to log internal server errors to database
         try {
             await db.sql`
                 INSERT INTO shipment_test_logs (
@@ -194,8 +190,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         console.error('Error processing shipment request:', error);
         return res.status(500).json({
-            title: 'Internal Server Error',
-            detail: error.message
+            detail: 'An unexpected error occurred on the server.'
         });
     }
 }

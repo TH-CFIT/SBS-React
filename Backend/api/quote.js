@@ -1,15 +1,14 @@
-// /api/quote.js
-// v2 - Added monetaryAmount, timezone fix, and robust logging.
 
 import fetch from 'node-fetch';
 import { sql } from '@vercel/postgres';
 
 const ALLOWED_ORIGINS = [
+    'http://localhost:5173',
     'https://viruzjoke.github.io',
-    'thcfit.duckdns.org',
-    'thcfit-admin.duckdns.org',
     'https://thcfit.vercel.app',
-    'https://thcfit-admin.vercel.app'
+    'https://thcfit-admin.vercel.app',
+    'https://sbs-react.vercel.app',
+    'https://sbs-react-admin.vercel.app'
 ];
 
 export default async function handler(req, res) {
@@ -19,7 +18,6 @@ export default async function handler(req, res) {
         res.setHeader('Access-Control-Allow-Origin', origin);
     }
     
-    res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
@@ -44,13 +42,11 @@ export default async function handler(req, res) {
             throw new Error('API environment variables are not configured correctly.');
         }
 
-        // Build the base payload
         dhlApiRequestPayload = {
             customerDetails: {
                 shipperDetails: { postalCode: formData.originPostalCode, cityName: formData.originCity, countryCode: formData.originCountry },
                 receiverDetails: { postalCode: formData.destinationPostalCode, cityName: formData.destinationCity, countryCode: formData.destinationCountry }
             },
-            // [MODIFIED] v4: Ensured correct timezone format for Thailand
             plannedShippingDateAndTime: `${formData.shipDate}T09:00:00GMT+07:00`,
             unitOfMeasurement: "metric",
             isCustomsDeclarable: formData.isParcel,
@@ -62,7 +58,6 @@ export default async function handler(req, res) {
             accounts: [{ typeCode: "shipper", number: "CASHTHBKK" }]
         };
 
-        // [MODIFIED] v4: Add monetaryAmount if it is a parcel and value is provided
         if (formData.isParcel && formData.declaredValue && formData.declaredCurrency) {
             dhlApiRequestPayload.monetaryAmount = [{
                 typeCode: "declaredValue",
@@ -73,8 +68,6 @@ export default async function handler(req, res) {
         
         const auth = 'Basic ' + Buffer.from(username + ':' + password).toString('base64');
         
-        // Log the request before sending
-        console.log("Sending DHL Quote Request:", JSON.stringify(dhlApiRequestPayload, null, 2));
 
         const quoteResponse = await fetch(ratesEndpoint, {
             method: 'POST',
@@ -84,7 +77,6 @@ export default async function handler(req, res) {
 
         const responseBodyText = await quoteResponse.text();
         
-        // Try to parse JSON, but handle cases where it might not be JSON
         let quoteData;
         try {
             quoteData = JSON.parse(responseBodyText);
@@ -92,7 +84,6 @@ export default async function handler(req, res) {
             quoteData = { error: "Non-JSON Response", body: responseBodyText };
         }
 
-        // [MODIFIED] v4: Enhanced logging
         if (!quoteResponse.ok) {
             console.error('DHL Rates API Error:', responseBodyText);
             await sql`
@@ -110,13 +101,12 @@ export default async function handler(req, res) {
         res.status(200).json(quoteData);
 
     } catch (error) {
-        // Log internal errors as well
         await sql`
             INSERT INTO api_logs (created_at, log_type, request_data, error_data)
             VALUES (NOW() AT TIME ZONE 'Asia/Bangkok', 'quote_internal_error', ${JSON.stringify(dhlApiRequestPayload || formData)}, ${error.message});
         `;
         console.error('Error processing quote request:', error);
-        return res.status(500).json({ error: 'An internal server error occurred.', details: error.message });
+        return res.status(500).json({ error: 'An internal server error occurred.' });
     }
 }
 

@@ -1,19 +1,16 @@
-// /api/query-logs.js
-// Vercel Serverless Function for querying shipment logs
-// v6 - Added email search for shipper and receiver
 
 import { sql } from '@vercel/postgres';
 
 const ALLOWED_ORIGINS = [
+    'http://localhost:5173',
     'https://viruzjoke.github.io',
-    'thcfit.duckdns.org',
-    'thcfit-admin.duckdns.org',
     'https://thcfit.vercel.app',
-    'https://thcfit-admin.vercel.app'
+    'https://thcfit-admin.vercel.app',
+    'https://sbs-react.vercel.app',
+    'https://sbs-react-admin.vercel.app'
 ];
 
 export default async function handler(req, res) {
-    // Set CORS headers
     const origin = req.headers.origin;
     if (ALLOWED_ORIGINS.includes(origin)) {
         res.setHeader('Access-Control-Allow-Origin', origin);
@@ -31,6 +28,12 @@ export default async function handler(req, res) {
         return res.status(405).end(`Method ${req.method} Not Allowed`);
     }
 
+    const authHeader = req.headers.authorization;
+    const adminToken = process.env.ADMIN_TOKEN;
+    if (!adminToken || authHeader !== `Bearer ${adminToken}`) {
+        return res.status(401).json({ message: 'Unauthorized access.' });
+    }
+
     try {
         const { 
             trackingNumber, 
@@ -40,7 +43,7 @@ export default async function handler(req, res) {
             reference, 
             accountNumber, 
             phone,
-            email, // Added email parameter
+            email,
             shipperCountry, 
             receiverCountry, 
             dateFrom, 
@@ -49,7 +52,6 @@ export default async function handler(req, res) {
             timeTo 
         } = req.query;
 
-        // Added shipper_email and receiver_email to the SELECT statement
         let query = `
             SELECT 
                 log_type,
@@ -119,7 +121,6 @@ export default async function handler(req, res) {
             paramIndex++;
         }
 
-        // Added condition for email search
         if (email) {
             whereClauses.push(`(shipper_email ILIKE $${paramIndex} OR receiver_email ILIKE $${paramIndex})`);
             queryParams.push(`%${email}%`);
@@ -161,6 +162,6 @@ export default async function handler(req, res) {
 
     } catch (error) {
         console.error('Error querying logs:', error);
-        res.status(500).json({ message: 'Internal Server Error', error: error.message });
+        res.status(500).json({ message: 'An internal server error occurred.' });
     }
 }

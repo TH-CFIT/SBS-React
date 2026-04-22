@@ -6,11 +6,11 @@ const ALLOWED_ORIGINS = [
     'https://viruzjoke.github.io',
     'https://thcfit.vercel.app',
     'https://thcfit-admin.vercel.app',
-    'https://sbs-react.vercel.app/'
+    'https://sbs-react.vercel.app',
+    'https://sbs-react-admin.vercel.app'
 ];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-    // Set CORS headers
     const origin = req.headers.origin;
     if (origin && ALLOWED_ORIGINS.includes(origin)) {
         res.setHeader('Access-Control-Allow-Origin', origin);
@@ -63,6 +63,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         res.status(200).json(responseData);
     } catch (error: any) {
         console.error('Internal Server Error while fetching reference data:', error);
-        res.status(500).json({ error: 'An internal server error occurred.', details: error.message });
+        res.status(500).json({ error: 'An internal server error occurred.' });
     }
 }

@@ -45,7 +45,6 @@ const AppContent: React.FC = () => {
     }
   }, []);
 
-  // Browser navigation / close / refresh protection
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (activePage === 'ship') {

@@ -1,13 +1,13 @@
-// /api/validate-address.js
 
 import fetch from 'node-fetch';
 
 const ALLOWED_ORIGINS = [
+    'http://localhost:5173',
     'https://viruzjoke.github.io',
-    'thcfit.duckdns.org',
-    'thcfit-admin.duckdns.org',
     'https://thcfit.vercel.app',
-    'https://thcfit-admin.vercel.app'
+    'https://thcfit-admin.vercel.app',
+    'https://sbs-react.vercel.app',
+    'https://sbs-react-admin.vercel.app'
 ];
 
 const DHL_API_KEY = process.env.DHL_VALIDATE_ADDRESS_API_KEY;
