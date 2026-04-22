@@ -25,9 +25,9 @@ export const MaintenancePage: React.FC = () => {
     <div className="flex items-center justify-center min-h-[60vh] p-4">
       <section className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-md p-8 rounded-2xl shadow-2xl text-center max-w-lg w-full border border-white/20">
         <div className="mb-6">
-          <img 
-            src="/Server.jpg" 
-            alt="Service Status" 
+          <img
+            src="/Server.png"
+            alt="Service Status"
             className="mx-auto h-32 w-auto drop-shadow-lg"
             onError={(e) => {
               (e.target as HTMLImageElement).style.display = 'none';
@@ -38,7 +38,7 @@ export const MaintenancePage: React.FC = () => {
         <h1 className="text-3xl font-bold text-dhl-red mb-4">
           {t('backToNormalTitle' as any)}
         </h1>
-        
+
         <p className="text-lg text-gray-700 dark:text-gray-200 mb-6">
           {t('backToNormalBody1' as any)} <span className="font-bold text-dhl-red text-2xl">{countdown}</span> {t('backToNormalBody2' as any)}
         </p>
@@ -47,8 +47,8 @@ export const MaintenancePage: React.FC = () => {
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
             {t('backToNormalBody3' as any)}
           </p>
-          <a 
-            href={redirectUrl} 
+          <a
+            href={redirectUrl}
             className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-semibold transition-colors underline decoration-2 underline-offset-4"
           >
             MyDHL+
