@@ -85,7 +85,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             try {
                 const errorMessage = 'Failed to parse JSON response from DHL: ' + responseBodyText;
                 await db.sql`
-                    INSERT INTO shipment_test_logs (
+                    INSERT INTO shipment_logs (
                         created_at, log_type, respond_warnings,
                         shipper_name, shipper_company, shipper_phone, shipper_email, shipper_country,
                         receiver_name, receiver_company, receiver_phone, receiver_email, receiver_country,
@@ -117,7 +117,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             try {
                 await db.sql`
-                    INSERT INTO shipment_test_logs (
+                    INSERT INTO shipment_logs (
                         created_at, log_type, respond_warnings,
                         shipper_name, shipper_company, shipper_phone, shipper_email, shipper_country,
                         receiver_name, receiver_company, receiver_phone, receiver_email, receiver_country,
@@ -146,7 +146,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const invoiceContent = findDocContent('invoice');
 
             await db.sql`
-                INSERT INTO shipment_test_logs (
+                INSERT INTO shipment_logs (
                     created_at, log_type, respond_trackingnumber, booking_ref,
                     respond_packagesid, respond_label, respond_receipt, respond_invoice, respond_warnings,
                     shipper_name, shipper_company, shipper_phone, shipper_email, shipper_country,
@@ -171,7 +171,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch (error: any) {
         try {
             await db.sql`
-                INSERT INTO shipment_test_logs (
+                INSERT INTO shipment_logs (
                     created_at, log_type, respond_warnings,
                     shipper_name, shipper_company, shipper_phone, shipper_email, shipper_country,
                     receiver_name, receiver_company, receiver_phone, receiver_email, receiver_country,
