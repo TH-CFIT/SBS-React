@@ -138,7 +138,7 @@ const Combobox = ({
       <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{label}</label>
       <div className="relative">
         <div className={`w-full rounded-xl border-2 bg-white dark:bg-gray-800 flex items-center gap-3 transition-all ${isFocused ? 'border-dhl-yellow ring-2 ring-dhl-yellow/10' : 'hover:border-gray-200'} ${hasError ? 'border-dhl-red ring-4 ring-red-500/10' : 'border-gray-50 dark:border-gray-700'}`}>
-          {selectedOption?.countryCode && <span className="pl-4 flex-shrink-0"><CountryFlag code={selectedOption.countryCode} /></span>}
+          {(selectedOption?.countryCode || selectedOption?.code) && <span className="pl-4 flex-shrink-0"><CountryFlag code={selectedOption.countryCode || selectedOption.code} /></span>}
           <input
             ref={inputRef}
             type="text"
@@ -169,7 +169,7 @@ const Combobox = ({
                     onMouseDown={(e) => { e.preventDefault(); handleSelect(opt); }}
                     className={`p-3 rounded-xl flex items-center gap-3 cursor-pointer transition-all ${isSelected ? 'bg-dhl-red text-white' : 'hover:bg-gray-50 dark:hover:bg-gray-900'}`}
                   >
-                    {opt.countryCode && <CountryFlag code={opt.countryCode} />}
+                    {(opt.countryCode || opt.code) && <CountryFlag code={opt.countryCode || opt.code} />}
                     <span className="font-bold text-sm">{displayValue(opt)}</span>
                     {isSelected && <Check className="w-4 h-4 ml-auto" />}
                   </div>
@@ -193,7 +193,7 @@ const AddressCard = ({ title, data, onChange, countries, bgClass = '', readOnlyC
   const [showSuggestions, setShowSuggestions] = useState(false);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
-  const selectedCountry = countries.find((c: any) => c.countryCode === data.country);
+  const selectedCountry = countries.find((c: any) => (c.countryCode || c.code) === data.country);
   const mode = selectedCountry?.postalLocationTypeCode || 'CP';
 
   const showPostal = mode === 'CP';
@@ -721,16 +721,33 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
   const lineItemValueMin = appConfig.validationRules.lineItem.value.min;
 
   // Compute initial pickup times based on current time
-  const getInitialPickupTimes = () => {
+  const getInitialPickupState = () => {
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    const roundedUp = Math.ceil(currentMinutes / 30) * 30;
-    // Clamp between 6:00 AM (360) and 4:30 PM (990) to allow 90m window before 6:00 PM (1080)
-    const readyMin = Math.max(360, Math.min(roundedUp, 990));
+    
+    let shipDate = now.toISOString().split('T')[0];
+    let readyMin = Math.ceil(currentMinutes / 30) * 30;
+
+    if (currentMinutes > 990) { // After 4:30 PM
+      const nextDay = new Date(now);
+      nextDay.setDate(nextDay.getDate() + 1);
+      shipDate = nextDay.toISOString().split('T')[0];
+      readyMin = 540; // Default 9:00 AM next day
+    } else {
+      readyMin = Math.max(540, readyMin); // Min 9:00 AM today
+    }
+
     const closeMin = Math.min(readyMin + 90, 1080);
     const toStr = (m: number) => `${Math.floor(m / 60).toString().padStart(2, '0')}:${(m % 60).toString().padStart(2, '0')}`;
-    return { readyTime: toStr(readyMin), closeTime: toStr(closeMin) };
+    
+    return { 
+      shipDate, 
+      readyTime: toStr(readyMin), 
+      closeTime: toStr(closeMin) 
+    };
   };
+
+  const initialPickupState = getInitialPickupState();
 
   // Form State
   const [formData, setFormData] = useState({
@@ -750,7 +767,7 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
 
     // Step 2: Shipment Method & Details
     shipMethod: 'package' as 'package' | 'document',
-    shipDate: new Date().toISOString().split('T')[0],
+    shipDate: initialPickupState.shipDate,
     documentDescription: 'Documents - general business',
     shipmentReference: '',
     summarizeShipment: '',
@@ -788,8 +805,8 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
       required: true,
       location: pickupLocations[0] || 'Reception',
       instructions: '',
-      readyTime: getInitialPickupTimes().readyTime,
-      closeTime: getInitialPickupTimes().closeTime,
+      readyTime: initialPickupState.readyTime,
+      closeTime: initialPickupState.closeTime,
       address: { name: '', company: '', address1: '', address2: '', address3: '', city: '', postalCode: '', phone: '', country: 'TH' },
       isAddressManuallyEdited: false
     }
@@ -1376,7 +1393,7 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
                       const isLastItem = i === formData.invoice.items.length - 1;
                       const showDescError = isLastItem && itemDescError && (!item.description || item.description.trim() === '');
                       return (
-                        <div key={i} className="bg-gray-50 dark:bg-gray-900 border dark:border-gray-800 rounded-xl relative group transition-all hover:border-gray-200 overflow-hidden">
+                        <div key={i} className="bg-gray-50 dark:bg-gray-900 border dark:border-gray-800 rounded-xl relative group transition-all hover:border-gray-200">
                           {/* Item Header - always visible */}
                           <button onClick={() => setExpandedItems(prev => ({ ...prev, [i]: !isExpanded }))} className="w-full flex items-center justify-between p-4 text-left">
                             <div className="flex items-center gap-3 min-w-0">
