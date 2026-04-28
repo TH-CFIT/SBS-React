@@ -1257,9 +1257,9 @@ export const ShipPage: React.FC<ShipPageProps> = ({ onFinish, onBack }) => {
         <h1 className="text-4xl font-black text-gray-900 dark:text-white uppercase tracking-tighter">
           {t('createShipment')}
         </h1>
-        <div className="px-4 py-1 bg-dhl-yellow rounded-full text-[10px] font-bold uppercase tracking-widest text-dhl-red">
+         <!-- <div className="px-4 py-1 bg-dhl-yellow rounded-full text-[10px] font-bold uppercase tracking-widest text-dhl-red">
           {language === 'th' ? 'โหมดทดสอบ' : 'Test Mode'}
-        </div>
+        </div> --!>
       </div>
 
       {/* Progress Bar */}
