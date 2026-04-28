@@ -39,8 +39,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateHome, onClearShipper }
           />
         </div>
         <span className="text-xl md:text-2xl font-black text-dhl-red uppercase tracking-tighter flex flex-col leading-tight">
-          Backup Solution
-          <span className="text-[10px] font-bold text-dhl-dark-red tracking-normal -mt-1 opacity-80">(Test Environment)</span>
+          Backup Solution          
         </span>
       </div>
 
