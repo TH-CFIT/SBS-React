@@ -5,9 +5,10 @@ import { Menu, X, Sun, Moon, Globe, Trash2 } from 'lucide-react';
 interface HeaderProps {
   onNavigateHome: () => void;
   onClearShipper?: () => void;
+  isMaintenance?: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onNavigateHome, onClearShipper }) => {
+export const Header: React.FC<HeaderProps> = ({ onNavigateHome, onClearShipper, isMaintenance }) => {
   const { language, setLanguage, t } = useLanguage();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
@@ -39,19 +40,21 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateHome, onClearShipper }
           />
         </div>
         <span className="text-xl md:text-2xl font-black text-dhl-red uppercase tracking-tighter flex flex-col leading-tight">
-          Backup Solution          
+          Backup Solution
         </span>
       </div>
 
       {/* Desktop Nav */}
       <nav className="hidden sm:flex items-center space-x-4">
-        <button
-          onClick={onClearShipper || onNavigateHome}
-          className="utility-button bg-white/50 px-3 flex items-center gap-2 font-bold text-dhl-red"
-        >
-          <Trash2 className="w-4 h-4" />
-          {t('clearHistory')}
-        </button>
+        {!isMaintenance && (
+          <button
+            onClick={onClearShipper || onNavigateHome}
+            className="utility-button bg-white/50 px-3 flex items-center gap-2 font-bold text-dhl-red"
+          >
+            <Trash2 className="w-4 h-4" />
+            {t('clearHistory')}
+          </button>
+        )}
         <div className="relative">
           <button
             onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
@@ -95,10 +98,12 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateHome, onClearShipper }
               </button>
             </div>
 
-            <button onClick={() => { (onClearShipper || onNavigateHome)(); setIsMenuOpen(false); }} className="w-full p-4 rounded-xl text-left border flex items-center gap-3 bg-dhl-yellow/10 border-dhl-yellow font-bold">
-              <Trash2 className="w-5 h-5" />
-              {t('clearHistory')}
-            </button>
+            {!isMaintenance && (
+              <button onClick={() => { (onClearShipper || onNavigateHome)(); setIsMenuOpen(false); }} className="w-full p-4 rounded-xl text-left border flex items-center gap-3 bg-dhl-yellow/10 border-dhl-yellow font-bold">
+                <Trash2 className="w-5 h-5" />
+                {t('clearHistory')}
+              </button>
+            )}
 
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase text-gray-500 mb-2">Language / ภาษา</p>
