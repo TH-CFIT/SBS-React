@@ -124,7 +124,11 @@ const AppContent: React.FC = () => {
       <div className="fixed inset-0 z-[-1] bg-cover bg-center blur-xl opacity-70 scale-100" style={{ backgroundImage: "url('/SBS_Background.jpg')" }} />
       <div className="fixed inset-0 z-[-1] bg-white/60 dark:bg-gray-200/95 pointer-events-none" />
       <div className="flex flex-col min-h-screen font-sans selection:bg-dhl-yellow selection:text-dhl-red">
-        <Header onNavigateHome={() => handleNavigateHome()} onClearShipper={handleClearShipper} />
+        <Header 
+          onNavigateHome={() => handleNavigateHome()} 
+          onClearShipper={handleClearShipper} 
+          isMaintenance={isSuspended === true || activePage === 'maintenance'} 
+        />
         
         <main className="flex-grow container mx-auto px-6 py-6 md:py-12 lg:px-20 max-w-7xl">
           {renderPage()}
