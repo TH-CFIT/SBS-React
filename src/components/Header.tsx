@@ -46,7 +46,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateHome, onClearShipper, 
 
       {/* Desktop Nav */}
       <nav className="hidden sm:flex items-center space-x-4">
-        {!isMaintenance && (
+        {isMaintenance === false && (
           <button
             onClick={onClearShipper || onNavigateHome}
             className="utility-button bg-white/50 px-3 flex items-center gap-2 font-bold text-dhl-red"
@@ -98,7 +98,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateHome, onClearShipper, 
               </button>
             </div>
 
-            {!isMaintenance && (
+            {isMaintenance === false && (
               <button onClick={() => { (onClearShipper || onNavigateHome)(); setIsMenuOpen(false); }} className="w-full p-4 rounded-xl text-left border flex items-center gap-3 bg-dhl-yellow/10 border-dhl-yellow font-bold">
                 <Trash2 className="w-5 h-5" />
                 {t('clearHistory')}
